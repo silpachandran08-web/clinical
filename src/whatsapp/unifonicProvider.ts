@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
-import { env } from "../config/env.js";
-import type { InboundWhatsAppMessage, WhatsAppProvider } from "./provider.js";
+import { env } from "../config/env";
+import type { InboundWhatsAppMessage, WhatsAppProvider } from "./provider";
 
 /**
  * Unifonic WhatsApp Business API adapter.

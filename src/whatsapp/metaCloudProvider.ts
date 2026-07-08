@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
-import { env } from "../config/env.js";
-import type { InboundWhatsAppMessage, WhatsAppProvider } from "./provider.js";
+import { env } from "../config/env";
+import type { InboundWhatsAppMessage, WhatsAppProvider } from "./provider";
 
 /**
  * Direct Meta WhatsApp Cloud API adapter — used if a clinic prefers to skip

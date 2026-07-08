@@ -1,5 +1,5 @@
-import { prisma } from "../db/client.js";
-import { generateSlotsForDoctor } from "./slotGenerator.js";
+import { prisma } from "../db/client";
+import { generateSlotsForDoctor } from "./slotGenerator";
 
 async function main() {
   const doctors = await prisma.doctor.findMany({ where: { active: true } });

@@ -1,12 +1,12 @@
-import * as bookingService from "../scheduling/bookingService.js";
-import type { AvailabilitySlot, BookingResult, EhrAdapter } from "./ehrAdapter.js";
+import * as bookingService from "../scheduling/bookingService";
+import type { AvailabilitySlot, BookingResult, EhrAdapter } from "./ehrAdapter";
 
 /** Default adapter: our own Postgres booking core is the source of truth. */
 export class NativeAdapter implements EhrAdapter {
   async getAvailability(params: {
     clinicId: string;
     doctorId?: string;
-    specialty?: string;
+    departmentName?: string;
     from: Date;
     to: Date;
   }): Promise<AvailabilitySlot[]> {

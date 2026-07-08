@@ -1,4 +1,4 @@
-import { prisma } from "../db/client.js";
+import { prisma } from "../db/client";
 
 export interface WorkingHoursTemplate {
   dayOfWeek: number; // 0=Sun..6=Sat

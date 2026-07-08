@@ -1,7 +1,7 @@
 import type { Clinic } from "@prisma/client";
-import { FhirAdapter } from "./fhirAdapter.js";
-import { NativeAdapter } from "./nativeAdapter.js";
-import type { EhrAdapter } from "./ehrAdapter.js";
+import { FhirAdapter } from "./fhirAdapter";
+import { NativeAdapter } from "./nativeAdapter";
+import type { EhrAdapter } from "./ehrAdapter";
 
 const nativeAdapter = new NativeAdapter();
 
@@ -21,4 +21,4 @@ export function getEhrAdapter(clinic: Clinic): EhrAdapter {
   }
 }
 
-export type { EhrAdapter, AvailabilitySlot, BookingResult } from "./ehrAdapter.js";
+export type { EhrAdapter, AvailabilitySlot, BookingResult } from "./ehrAdapter";

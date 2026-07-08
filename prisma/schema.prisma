@@ -62,26 +62,44 @@ model Clinic {
   integrationConfig Json?         // adapter-specific connection details
   createdAt       DateTime        @default(now())
 
+  departments   Department[]
   doctors       Doctor[]
   patients      Patient[]
   appointments  Appointment[]
   conversations Conversation[]
 }
 
+// Departments are how a clinic organizes doctors (e.g. "Dermatology",
+// "General Medicine"). The AI receptionist matches a patient's natural-
+// language request ("I need a skin doctor") against department names, not IDs.
+model Department {
+  id        String   @id @default(cuid())
+  clinicId  String
+  clinic    Clinic   @relation(fields: [clinicId], references: [id])
+  name      String
+  createdAt DateTime @default(now())
+
+  doctors Doctor[]
+
+  @@unique([clinicId, name])
+}
+
 model Doctor {
-  id         String   @id @default(cuid())
-  clinicId   String
-  clinic     Clinic   @relation(fields: [clinicId], references: [id])
-  name       String
-  specialty  String
-  active     Boolean  @default(true)
-  createdAt  DateTime @default(now())
+  id           String     @id @default(cuid())
+  clinicId     String
+  clinic       Clinic     @relation(fields: [clinicId], references: [id])
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id])
+  name         String
+  active       Boolean    @default(true)
+  createdAt    DateTime   @default(now())
 
   workingHours WorkingHours[]
   slots        Slot[]
   appointments Appointment[]
 
   @@index([clinicId])
+  @@index([departmentId])
 }
 
 // Recurring weekly template used to materialize Slot rows for a rolling window.

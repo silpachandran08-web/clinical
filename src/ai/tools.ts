@@ -1,17 +1,17 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type { Clinic } from "@prisma/client";
-import { env } from "../config/env.js";
-import { getEhrAdapter } from "../integrations/index.js";
-import * as bookingService from "../scheduling/bookingService.js";
+import { env } from "../config/env";
+import { getEhrAdapter } from "../integrations/index";
+import * as bookingService from "../scheduling/bookingService";
 
 export const toolDefinitions: Anthropic.Tool[] = [
   {
     name: "list_doctors",
-    description: "List active doctors at the clinic, optionally filtered by specialty.",
+    description: "List active doctors at the clinic, optionally filtered by department.",
     input_schema: {
       type: "object",
       properties: {
-        specialty: { type: "string", description: "e.g. 'dermatology', 'pediatrics'" },
+        departmentName: { type: "string", description: "e.g. 'Dermatology', 'Pediatrics' — match the patient's request to the closest department name" },
       },
     },
   },
@@ -22,7 +22,7 @@ export const toolDefinitions: Anthropic.Tool[] = [
       type: "object",
       properties: {
         doctorId: { type: "string" },
-        specialty: { type: "string" },
+        departmentName: { type: "string" },
         fromISO: { type: "string", description: "ISO date to start searching from" },
         toISO: { type: "string", description: "ISO date to search up to" },
       },
@@ -81,10 +81,14 @@ export async function runTool(name: string, input: any, ctx: ToolContext): Promi
 
   switch (name) {
     case "list_doctors": {
-      const { prisma } = await import("../db/client.js");
+      const { prisma } = await import("../db/client");
       return prisma.doctor.findMany({
-        where: { clinicId: ctx.clinic.id, active: true, ...(input.specialty ? { specialty: input.specialty } : {}) },
-        select: { id: true, name: true, specialty: true },
+        where: {
+          clinicId: ctx.clinic.id,
+          active: true,
+          ...(input.departmentName ? { department: { name: input.departmentName } } : {}),
+        },
+        select: { id: true, name: true, department: { select: { name: true } } },
       });
     }
 
@@ -92,7 +96,7 @@ export async function runTool(name: string, input: any, ctx: ToolContext): Promi
       const slots = await adapter.getAvailability({
         clinicId: ctx.clinic.id,
         doctorId: input.doctorId,
-        specialty: input.specialty,
+        departmentName: input.departmentName,
         from: new Date(input.fromISO),
         to: new Date(input.toISO),
       });

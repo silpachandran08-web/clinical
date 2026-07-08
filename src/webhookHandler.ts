@@ -1,7 +1,7 @@
-import { env } from "./config/env.js";
-import { prisma } from "./db/client.js";
-import { handleInboundMessage } from "./ai/orchestrator.js";
-import { createWhatsAppProvider } from "./whatsapp/index.js";
+import { env } from "./config/env";
+import { prisma } from "./db/client";
+import { handleInboundMessage } from "./ai/orchestrator";
+import { createWhatsAppProvider } from "./whatsapp/index";
 
 const provider = createWhatsAppProvider();
 

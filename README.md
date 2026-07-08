@@ -44,54 +44,43 @@ Patient (WhatsApp) -> Unifonic/Meta gateway -> Conversation Orchestrator (Claude
 ## Project layout
 
 ```
-prisma/schema.prisma       clinics, doctors, working hours, slots, patients, appointments, conversation log
+prisma/schema.prisma       clinics, departments, doctors, working hours, slots, patients, appointments, conversation log
 src/config/env.ts          typed, fail-fast env loading
 src/whatsapp/               WhatsAppProvider interface + Unifonic/Meta implementations
 src/ai/                     system prompt, tool definitions, Claude tool-use loop
 src/scheduling/             pure slot-time generator + transactional booking service (double-booking guard)
 src/integrations/           EhrAdapter interface + Native/FHIR adapters, adapter registry
-src/webhookHandler.ts       framework-agnostic webhook logic (shared by Fastify and Vercel)
-src/adminHandlers.ts        framework-agnostic clinic-onboarding logic (shared by Fastify and Vercel)
-src/routes/                 thin Fastify wrappers around the handlers above, for local dev
-api/                        thin Vercel serverless-function wrappers around the same handlers
+src/webhookHandler.ts       framework-agnostic webhook logic (used by app/api/webhook)
+src/adminHandlers.ts        framework-agnostic clinic/department/doctor logic (used by the dashboard's Server Actions)
+app/api/                    Next.js Route Handlers: WhatsApp webhook, health check
+app/admin/                  the admin dashboard (Server Components + Server Actions)
+lib/auth.ts, proxy.ts       session-cookie auth and the route guard for /admin/**
+lib/actions/                Server Actions the dashboard forms submit to
 tests/                      unit tests (no live DB needed)
 ```
 
-Local dev (`npm run dev`) serves routes at `/webhook/whatsapp` and
-`/admin/...` via Fastify. Deployed on Vercel, the same logic is served at
-`/api/webhook` and `/api/admin/...` — Vercel's routing convention prefixes
-everything under `api/` with `/api`. See [DEPLOY.md](./DEPLOY.md) for the
-full deployment walkthrough.
+One Next.js app serves everything — the WhatsApp webhook (`/api/webhook`),
+the health check (`/api/health`), and the admin dashboard (`/admin`) — so
+there's no separate local-vs-production routing split to keep in sync.
+See [DEPLOY.md](./DEPLOY.md) for the full deployment walkthrough.
 
 ## Running it
 
 ```bash
 npm install
-cp .env.example .env        # fill in ANTHROPIC_API_KEY, DATABASE_URL, Unifonic creds
-npx prisma migrate dev      # creates the schema against a local Postgres
-npm run dev                 # starts the Fastify server on :8080
+cp .env.example .env        # fill in ANTHROPIC_API_KEY, DATABASE_URL, ADMIN_PASSWORD, SESSION_SECRET
+npx prisma migrate dev      # creates the schema against a local (or Neon) Postgres
+npm run dev                 # starts Next.js on :3000
 ```
 
-Onboard the first clinic and doctor:
+Open `http://localhost:3000/admin`, log in with `ADMIN_PASSWORD`, and use the
+dashboard to create the clinic, add departments, and add doctors (with their
+weekly working hours — this also materializes the next 30 days of bookable
+slots automatically). Point the Unifonic (or Meta) webhook at
+`POST /api/webhook` and the number is live.
 
-```bash
-curl -X POST localhost:8080/admin/clinics -H 'Content-Type: application/json' -d '{
-  "name": "Al Noor Clinic", "whatsappNumber": "+9665XXXXXXXX"
-}'
-
-curl -X POST localhost:8080/admin/doctors -H 'Content-Type: application/json' -d '{
-  "clinicId": "<id from above>",
-  "name": "Dr. Fatima Al-Harbi",
-  "specialty": "General Medicine",
-  "workingHours": [
-    { "dayOfWeek": 0, "startTime": "09:00", "endTime": "17:00" },
-    { "dayOfWeek": 1, "startTime": "09:00", "endTime": "17:00" }
-  ]
-}'
-```
-
-That second call also materializes the next 30 days of bookable slots (`slotGenerator.ts`).
-Point the Unifonic (or Meta) webhook at `POST /webhook/whatsapp` and the number is live.
+The dashboard is single-admin (one shared password) and single-clinic for
+now — see "Not yet built" below for what real multi-clinic self-signup would need.
 
 ## Testing strategy
 
@@ -113,9 +102,8 @@ Point the Unifonic (or Meta) webhook at `POST /webhook/whatsapp` and the number 
 
 ## Business / rollout notes
 
-- **MVP scope**: one clinic, one WhatsApp number, a handful of doctors, admin API only
-  (no dashboard UI yet) — staff manage schedules via the endpoints above or a thin internal
-  tool.
+- **MVP scope**: one clinic, one WhatsApp number, a handful of doctors, single shared admin
+  login (not per-clinic accounts) — real multi-clinic self-signup is future work, not MVP.
 - **Onboarding a second clinic** should be: create a `Clinic` row, choose `integrationMode`,
   point the WhatsApp number at the same webhook. No redeploy of core logic.
 - **Monetization** (later): per-clinic SaaS fee, or per-booking, tiered by integration
@@ -132,7 +120,7 @@ Point the Unifonic (or Meta) webhook at `POST /webhook/whatsapp` and the number 
 ## Not yet built (next up)
 
 - Appointment reminder job (WhatsApp template message N hours before the slot).
-- Reschedule flow (currently only cancel + rebook).
-- Admin dashboard UI (the endpoints exist; no front-end yet).
+- Reschedule flow from the dashboard (currently cancel via the dashboard, rebook via WhatsApp).
+- Real multi-clinic self-signup (per-clinic accounts and login, not one shared admin password).
 - `SheetsAdapter` for a clinic with literally no existing system beyond a spreadsheet.
 - Load/concurrency test suite against a real Postgres.

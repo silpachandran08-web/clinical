@@ -1,9 +1,9 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { Clinic } from "@prisma/client";
-import { env } from "../config/env.js";
-import { prisma } from "../db/client.js";
-import { buildSystemPrompt } from "./systemPrompt.js";
-import { runTool, toolDefinitions } from "./tools.js";
+import { env } from "../config/env";
+import { prisma } from "../db/client";
+import { buildSystemPrompt } from "./systemPrompt";
+import { runTool, toolDefinitions } from "./tools";
 
 const anthropic = new Anthropic({ apiKey: env.anthropicApiKey });
 

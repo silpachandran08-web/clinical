@@ -1,4 +1,4 @@
-import type { AvailabilitySlot, BookingResult, EhrAdapter } from "./ehrAdapter.js";
+import type { AvailabilitySlot, BookingResult, EhrAdapter } from "./ehrAdapter";
 
 /**
  * Stub for clinics that already run a FHIR-based scheduling/EHR system.

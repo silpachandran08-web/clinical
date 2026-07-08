@@ -1,10 +1,10 @@
-import { prisma } from "../db/client.js";
-import { SlotUnavailableError } from "./errors.js";
+import { prisma } from "../db/client";
+import { SlotUnavailableError } from "./errors";
 
 export interface AvailabilityQuery {
   clinicId: string;
   doctorId?: string;
-  specialty?: string;
+  departmentName?: string;
   from: Date;
   to: Date;
 }
@@ -18,7 +18,7 @@ export async function getAvailability(query: AvailabilityQuery) {
         clinicId: query.clinicId,
         active: true,
         ...(query.doctorId ? { id: query.doctorId } : {}),
-        ...(query.specialty ? { specialty: query.specialty } : {}),
+        ...(query.departmentName ? { department: { name: query.departmentName } } : {}),
       },
     },
     include: { doctor: true },

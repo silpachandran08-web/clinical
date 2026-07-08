@@ -38,9 +38,10 @@ cp .env.example .env
 ```
 
 Edit `.env`: paste your Neon pooled URL into `DATABASE_URL`, the unpooled one
-into `DIRECT_URL`, and your Anthropic key into `ANTHROPIC_API_KEY`. Leave the
-Meta/Unifonic fields blank for now — `env.ts` only requires those two plus
-the DB URLs, so you can defer WhatsApp setup.
+into `DIRECT_URL`, your Anthropic key into `ANTHROPIC_API_KEY`, and pick an
+`ADMIN_PASSWORD` and a random `SESSION_SECRET` (these protect the `/admin`
+dashboard — see step 6). Leave the Meta/Unifonic fields blank for now, you
+can defer WhatsApp setup.
 
 ```bash
 npm install
@@ -64,12 +65,12 @@ gh repo create clinic-whatsapp-assistant --private --source=. --push
 ## 4. Import into Vercel
 
 1. vercel.com → Add New → Project → import the GitHub repo you just pushed.
-2. Framework Preset: **Other**. Leave Build Command / Output Directory as
-   default — this project has no frontend, Vercel just needs `api/*.ts`.
+2. Framework Preset: Vercel should auto-detect **Next.js** — leave it as-is.
 3. Before the first deploy, add these Environment Variables (Project Settings
    → Environment Variables), same names as your local `.env`:
    - `DATABASE_URL`, `DIRECT_URL`
    - `ANTHROPIC_API_KEY`, `CLAUDE_MODEL` (e.g. `claude-sonnet-5`)
+   - `ADMIN_PASSWORD`, `SESSION_SECRET`
    - `WHATSAPP_PROVIDER` = `meta`
    - `META_PHONE_NUMBER_ID`, `META_ACCESS_TOKEN`, `META_VERIFY_TOKEN`, `META_APP_SECRET`
      (you'll get real values for these in step 5 — put in placeholders now,
@@ -103,34 +104,16 @@ gh repo create clinic-whatsapp-assistant --private --source=. --push
 
 ## 6. Onboard your first clinic
 
-**Important:** on Vercel, admin endpoints live under `/api/admin/...`
-(the `api/` prefix comes from Vercel's routing convention) — this differs
-from local dev with `npm run dev`, where the Fastify server serves the same
-logic at `/admin/...` with no `/api` prefix.
+Go to `https://<your-project>.vercel.app/admin`, log in with `ADMIN_PASSWORD`,
+and use the dashboard:
 
-Take the test number shown on the Meta API Setup page (e.g. "+1 555 693
-2195") and strip it down to clean E.164 — no spaces, no dashes: `+15556932195`.
-That exact string is the clinic's `whatsappNumber`.
-
-```bash
-curl -X POST https://<your-project>.vercel.app/api/admin/clinics \
-  -H 'Content-Type: application/json' \
-  -d '{ "name": "Test Clinic", "whatsappNumber": "+15556932195" }'
-
-curl -X POST https://<your-project>.vercel.app/api/admin/doctors \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "clinicId": "<id from the response above>",
-    "name": "Dr. Test",
-    "specialty": "General Medicine",
-    "workingHours": [
-      { "dayOfWeek": 0, "startTime": "09:00", "endTime": "17:00" },
-      { "dayOfWeek": 1, "startTime": "09:00", "endTime": "17:00" },
-      { "dayOfWeek": 2, "startTime": "09:00", "endTime": "17:00" },
-      { "dayOfWeek": 3, "startTime": "09:00", "endTime": "17:00" }
-    ]
-  }'
-```
+1. **Clinic** tab: take the test number shown on the Meta API Setup page
+   (e.g. "+1 555 693 2195"), strip it to clean E.164 — no spaces, no dashes:
+   `+15556932195` — and save it as the clinic's WhatsApp number.
+2. **Departments** tab: add at least one (e.g. "General Medicine").
+3. **Doctors** tab: add a doctor, assign them to that department, tick their
+   working days and hours. Saving this also generates the next 30 days of
+   bookable slots automatically.
 
 ## 7. Try it
 
@@ -147,9 +130,9 @@ fastest way to see what actually happened if a reply doesn't come back.
 - **"Prisma Client could not locate the Query Engine"**: means `binaryTargets`
   in `prisma/schema.prisma` didn't take effect — confirm `postinstall` ran
   `prisma generate` in the Vercel build logs.
-- **Timeout / no response after ~10s**: `vercel.json` sets `maxDuration: 60`
-  for all `api/**` functions; if you removed that, the default is 10s on the
-  Hobby plan and a multi-round tool-use conversation can exceed it.
+- **Timeout / no response after ~10s**: `app/api/webhook/route.ts` sets
+  `export const maxDuration = 60`; if that's missing, the default is 10s on
+  the Hobby plan and a multi-round tool-use conversation can exceed it.
 - **Webhook verification fails when saving in Meta's Configuration page**:
   `META_VERIFY_TOKEN` in Vercel must exactly match what you typed into Meta's
   form, and the env var change must have been deployed already.

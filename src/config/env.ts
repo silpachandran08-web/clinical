@@ -7,11 +7,13 @@ function required(name: string): string {
 }
 
 export const env = {
-  port: Number(process.env.PORT ?? 8080),
   databaseUrl: required("DATABASE_URL"),
 
   anthropicApiKey: required("ANTHROPIC_API_KEY"),
   claudeModel: process.env.CLAUDE_MODEL ?? "claude-sonnet-5",
+
+  adminPassword: required("ADMIN_PASSWORD"),
+  sessionSecret: required("SESSION_SECRET"),
 
   whatsappProvider: (process.env.WHATSAPP_PROVIDER ?? "unifonic") as "unifonic" | "meta",
 

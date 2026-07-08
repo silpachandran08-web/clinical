@@ -30,7 +30,7 @@ export interface EhrAdapter {
   getAvailability(params: {
     clinicId: string;
     doctorId?: string;
-    specialty?: string;
+    departmentName?: string;
     from: Date;
     to: Date;
   }): Promise<AvailabilitySlot[]>;
