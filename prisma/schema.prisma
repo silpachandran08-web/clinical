@@ -1,0 +1,176 @@
+// Clinic WhatsApp Assistant — scheduling core
+// Multi-tenant from day one: every table hangs off Clinic so onboarding
+// clinic #2 is a config row + adapter choice, not a schema change.
+
+generator client {
+  provider      = "prisma-client-js"
+  // rhel-openssl-3.0.x matches Vercel's serverless function runtime (Amazon Linux).
+  // Without this, Prisma can't find its query engine binary in production and
+  // every DB call fails at runtime even though local dev works fine.
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  // Set to Neon's pooled connection string in production (many short-lived
+  // serverless invocations exhaust Postgres's connection limit otherwise);
+  // directUrl is the unpooled one, used only for migrations. Point both at
+  // the same local Postgres URL for local dev.
+  directUrl = env("DIRECT_URL")
+}
+
+enum SlotStatus {
+  OPEN
+  BOOKED
+  BLOCKED
+}
+
+enum AppointmentStatus {
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+  NO_SHOW
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum Locale {
+  AR
+  EN
+}
+
+// Which EHR/scheduling system this clinic's data actually lives in.
+// NATIVE = our own Postgres is the source of truth (MVP default).
+enum IntegrationMode {
+  NATIVE
+  FHIR
+  SHEETS
+}
+
+model Clinic {
+  id              String          @id @default(cuid())
+  name            String
+  timezone        String          @default("Asia/Riyadh")
+  defaultLocale   Locale          @default(AR)
+  whatsappNumber  String          @unique
+  weekendDays     Int[]           @default([5, 6]) // Fri=5, Sat=6 (0=Sun..6=Sat)
+  integrationMode IntegrationMode @default(NATIVE)
+  integrationConfig Json?         // adapter-specific connection details
+  createdAt       DateTime        @default(now())
+
+  doctors       Doctor[]
+  patients      Patient[]
+  appointments  Appointment[]
+  conversations Conversation[]
+}
+
+model Doctor {
+  id         String   @id @default(cuid())
+  clinicId   String
+  clinic     Clinic   @relation(fields: [clinicId], references: [id])
+  name       String
+  specialty  String
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+
+  workingHours WorkingHours[]
+  slots        Slot[]
+  appointments Appointment[]
+
+  @@index([clinicId])
+}
+
+// Recurring weekly template used to materialize Slot rows for a rolling window.
+model WorkingHours {
+  id                 String @id @default(cuid())
+  doctorId           String
+  doctor             Doctor @relation(fields: [doctorId], references: [id])
+  dayOfWeek          Int    // 0=Sun..6=Sat
+  startTime          String // "09:00"
+  endTime            String // "17:00"
+  slotDurationMinutes Int   @default(20)
+
+  @@index([doctorId])
+}
+
+// Materialized bookable slots for a rolling window (see slotGenerator).
+// Unique constraint is the concurrency guard: two patients can never
+// be assigned the same doctor+time.
+model Slot {
+  id        String     @id @default(cuid())
+  doctorId  String
+  doctor    Doctor     @relation(fields: [doctorId], references: [id])
+  startsAt  DateTime
+  endsAt    DateTime
+  status    SlotStatus @default(OPEN)
+
+  appointment Appointment?
+
+  @@unique([doctorId, startsAt])
+  @@index([doctorId, status, startsAt])
+}
+
+model Patient {
+  id        String   @id @default(cuid())
+  clinicId  String
+  clinic    Clinic   @relation(fields: [clinicId], references: [id])
+  phone     String   // E.164, e.g. +9665XXXXXXXX
+  name      String?
+  locale    Locale   @default(AR)
+  createdAt DateTime @default(now())
+
+  appointments  Appointment[]
+  conversations Conversation[]
+
+  @@unique([clinicId, phone])
+}
+
+model Appointment {
+  id            String            @id @default(cuid())
+  clinicId      String
+  clinic        Clinic            @relation(fields: [clinicId], references: [id])
+  doctorId      String
+  doctor        Doctor            @relation(fields: [doctorId], references: [id])
+  patientId     String
+  patient       Patient           @relation(fields: [patientId], references: [id])
+  slotId        String            @unique
+  slot          Slot              @relation(fields: [slotId], references: [id])
+  status        AppointmentStatus @default(CONFIRMED)
+  reason        String?           // free-text, logistics only (e.g. "follow-up") — never clinical advice
+  reminderSentAt DateTime?
+  createdAt     DateTime          @default(now())
+
+  @@index([clinicId, status])
+}
+
+model Conversation {
+  id            String   @id @default(cuid())
+  clinicId      String
+  clinic        Clinic   @relation(fields: [clinicId], references: [id])
+  patientId     String?
+  patient       Patient? @relation(fields: [patientId], references: [id])
+  patientPhone  String
+  state         Json     @default("{}") // scratch state for the orchestrator (pending slot choice, etc.)
+  lastMessageAt DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  messages Message[]
+
+  @@index([clinicId, patientPhone])
+}
+
+model Message {
+  id             String           @id @default(cuid())
+  conversationId String
+  conversation   Conversation     @relation(fields: [conversationId], references: [id])
+  direction      MessageDirection
+  body           String
+  toolCalls      Json?
+  createdAt      DateTime         @default(now())
+
+  @@index([conversationId, createdAt])
+}
