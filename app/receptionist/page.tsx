@@ -9,7 +9,8 @@ import {
   listWeekSlots,
   searchPatients,
 } from "@/src/receptionistHandlers";
-import { addPatientAction, bookWalkInAction, checkInAction } from "@/lib/actions/receptionist";
+import { addPatientAction, checkInAction } from "@/lib/actions/receptionist";
+import { WeekSlotPicker } from "./WeekSlotPicker";
 
 function slotQuery(params: {
   doctorId: string;
@@ -294,48 +295,27 @@ export default async function ReceptionistPage({
                   <span className="slot-btn open" style={{ marginRight: 6, cursor: "default" }}>
                     green
                   </span>
-                  open — click to book &nbsp;·&nbsp;
+                  open — click to select &nbsp;·&nbsp;
                   <span className="slot-btn booked" style={{ marginLeft: 6, cursor: "default" }}>
                     red
                   </span>
                   already taken
                 </p>
 
-                {week.map((day) => (
-                  <div className="day-row" key={day.date.toISOString()}>
-                    <div className="day-label">
-                      {day.date.toLocaleDateString(undefined, { weekday: "short" })}
-                      <span className="day-sub">
-                        {day.date.toLocaleDateString(undefined, { month: "short", day: "numeric" })}
-                      </span>
-                    </div>
-                    <div className="slot-list">
-                      {day.slots.length === 0 ? (
-                        <span className="muted" style={{ fontSize: 12.5 }}>
-                          Not working this day
-                        </span>
-                      ) : (
-                        day.slots.map((slot) =>
-                          slot.status === "OPEN" ? (
-                            <form action={bookWalkInAction} key={slot.id}>
-                              <input type="hidden" name="doctorId" value={selectedDoctorId} />
-                              <input type="hidden" name="slotId" value={slot.id} />
-                              <input type="hidden" name="patientName" value={selectedPatientName} />
-                              <input type="hidden" name="patientPhone" value={selectedPatientPhone} />
-                              <button type="submit" className="slot-btn open">
-                                {slot.startsAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                              </button>
-                            </form>
-                          ) : (
-                            <span className="slot-btn booked" key={slot.id}>
-                              {slot.startsAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                            </span>
-                          ),
-                        )
-                      )}
-                    </div>
-                  </div>
-                ))}
+                <WeekSlotPicker
+                  doctorId={selectedDoctorId}
+                  patientName={selectedPatientName}
+                  patientPhone={selectedPatientPhone}
+                  days={week.map((day) => ({
+                    label: day.date.toLocaleDateString(undefined, { weekday: "short" }),
+                    sub: day.date.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+                    slots: day.slots.map((slot) => ({
+                      id: slot.id,
+                      status: slot.status,
+                      time: slot.startsAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                    })),
+                  }))}
+                />
               </div>
             )}
           </>
