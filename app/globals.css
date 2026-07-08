@@ -61,6 +61,9 @@ a:hover {
   box-shadow: var(--shadow-card);
   padding: 22px 24px;
   margin-bottom: 18px;
+  /* Tables inside cards can be wider than a phone screen — let the card
+     itself scroll horizontally instead of breaking the whole page layout. */
+  overflow-x: auto;
 }
 
 h1 {
@@ -94,9 +97,12 @@ h2 {
   position: sticky;
   top: 0;
   z-index: 10;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .nav a {
+  white-space: nowrap;
   padding: 15px 13px;
   color: var(--text-muted);
   text-decoration: none;
@@ -204,33 +210,89 @@ label {
 }
 
 input,
-select {
+select,
+textarea {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 9px 11px;
   color: var(--text);
   font-size: 14px;
+  font-family: inherit;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
+textarea {
+  resize: vertical;
+  min-height: 120px;
+  line-height: 1.5;
+}
+
 input:focus,
-select:focus {
+select:focus,
+textarea:focus {
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
-input::placeholder {
+input::placeholder,
+textarea::placeholder {
   color: #9aa1ac;
 }
 
 input:disabled,
-select:disabled {
+select:disabled,
+textarea:disabled {
   background: var(--surface-2);
   border-color: var(--border-soft);
   color: var(--text-muted);
   cursor: default;
+}
+
+/* --- Prescription builder --- */
+.med-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.med-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+}
+
+.med-row input[type="text"],
+.med-row input:not([type]) {
+  flex: 1;
+  min-width: 160px;
+}
+
+.med-timing {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.med-timing-option {
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.med-timing-option input {
+  width: auto;
+}
+
+.med-remove {
+  margin-left: auto;
 }
 
 button {
@@ -348,13 +410,6 @@ tbody tr:last-child td {
   font-size: 13px;
 }
 
-.working-hours-row {
-  display: grid;
-  grid-template-columns: 1.2fr 1fr 1fr 0.8fr auto;
-  gap: 8px;
-  align-items: center;
-}
-
 .empty-state {
   color: var(--text-muted);
   font-size: 13px;
@@ -465,4 +520,52 @@ tbody tr:last-child td {
   padding-top: 16px;
   border-top: 1px solid var(--border-soft);
   flex-wrap: wrap;
+}
+
+/* --- Multi-field rows (e.g. start/end time + slot length) --- */
+.time-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+}
+
+/* --- Mobile --- */
+@media (max-width: 640px) {
+  .container {
+    padding: 16px 14px 48px;
+  }
+
+  .card {
+    padding: 16px;
+  }
+
+  .nav {
+    padding: 0 14px;
+  }
+
+  .time-row {
+    grid-template-columns: 1fr;
+  }
+
+  .day-row {
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .day-row .day-label {
+    width: auto;
+  }
+
+  .week-nav {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  form.stack {
+    max-width: none;
+  }
+
+  h1 {
+    font-size: 19px;
+  }
 }

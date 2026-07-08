@@ -78,7 +78,7 @@ export default async function DoctorsPage({
             ))}
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+          <div className="time-row">
             <label>
               Start time
               <input type="time" name="startTime" defaultValue="09:00" required />

@@ -4,6 +4,7 @@ import { getSession } from "@/lib/session";
 import { countCompletedToday, listMyQueue } from "@/src/doctorHandlers";
 import { searchPatients } from "@/src/receptionistHandlers";
 import { completeConsultationAction, startConsultationAction } from "@/lib/actions/doctor";
+import { PrescriptionBuilder } from "./PrescriptionBuilder";
 
 export default async function DoctorQueuePage({
   searchParams,
@@ -103,16 +104,14 @@ export default async function DoctorQueuePage({
             Slot {current.slot.startsAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} ·{" "}
             <Link href={`/doctor/patients/${current.patient.id}`}>View patient history</Link>
           </p>
-          <form action={completeConsultationAction} className="stack">
+          <form action={completeConsultationAction} className="stack" style={{ maxWidth: 560 }}>
             <input type="hidden" name="appointmentId" value={current.id} />
             <label>
               Notes
-              <input name="notes" placeholder="Consultation notes" />
+              <textarea name="notes" placeholder="Consultation notes — history, examination, diagnosis…" rows={6} />
             </label>
-            <label>
-              Prescription
-              <input name="prescription" placeholder="Prescription, if any" />
-            </label>
+            <label>Prescription</label>
+            <PrescriptionBuilder fieldName="prescription" />
             <button type="submit">Complete visit</button>
           </form>
         </div>

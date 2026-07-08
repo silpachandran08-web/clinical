@@ -77,7 +77,7 @@ export default async function EditDoctorPage({
             ))}
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+          <div className="time-row">
             <label>
               Start time
               <input type="time" name="startTime" defaultValue={templateHours?.startTime ?? "09:00"} required />
