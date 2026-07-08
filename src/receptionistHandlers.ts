@@ -57,13 +57,56 @@ export async function checkInAppointment(clinicId: string, appointmentId: string
   }
 }
 
-export async function listTodayAvailability(clinicId: string, doctorId: string) {
-  return bookingService.getAvailability({
-    clinicId,
-    doctorId,
-    from: new Date(),
-    to: startOfTomorrow(),
+/** Sunday of the week containing `param` (an ISO "YYYY-MM-DD" date), or of the current week if omitted/invalid. */
+export function getWeekStart(param?: string): Date {
+  let start: Date;
+  if (param) {
+    const parsed = new Date(`${param}T00:00:00`);
+    start = isNaN(parsed.getTime()) ? new Date() : parsed;
+  } else {
+    start = new Date();
+  }
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - start.getDay());
+  return start;
+}
+
+export function formatWeekParam(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+export interface WeekDay {
+  date: Date;
+  slots: { id: string; startsAt: Date; status: string }[];
+}
+
+/**
+ * A doctor's full week, one entry per day, each slot tagged OPEN/BOOKED/BLOCKED
+ * so the UI can render a flight-booking-style grid — green for open, red for
+ * taken — instead of just a flat list of what's still free.
+ */
+export async function listWeekSlots(clinicId: string, doctorId: string, weekStart: Date): Promise<WeekDay[]> {
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekEnd.getDate() + 7);
+
+  const slots = await prisma.slot.findMany({
+    where: { doctorId, doctor: { clinicId }, startsAt: { gte: weekStart, lt: weekEnd } },
+    orderBy: { startsAt: "asc" },
+    select: { id: true, startsAt: true, status: true },
   });
+
+  const days: WeekDay[] = [];
+  for (let i = 0; i < 7; i++) {
+    const date = new Date(weekStart);
+    date.setDate(date.getDate() + i);
+    const dayEnd = new Date(date);
+    dayEnd.setDate(dayEnd.getDate() + 1);
+    days.push({
+      date,
+      slots: slots.filter((s) => s.startsAt >= date && s.startsAt < dayEnd),
+    });
+  }
+  return days;
 }
 
 export async function bookWalkIn(params: {

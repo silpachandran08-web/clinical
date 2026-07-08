@@ -367,3 +367,84 @@ tbody tr:last-child td {
   border-top: 1px solid var(--border-soft);
   margin: 18px 0;
 }
+
+/* --- Weekly slot grid (flight-booking style) --- */
+.week-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 14px 0;
+}
+
+.week-nav .range {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.day-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.day-row:last-child {
+  border-bottom: none;
+}
+
+.day-row .day-label {
+  width: 96px;
+  flex-shrink: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  padding-top: 6px;
+}
+
+.day-row .day-label .day-sub {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.slot-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 1;
+}
+
+.slot-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 68px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+
+.slot-btn.open {
+  background: var(--success-soft);
+  color: #15803d;
+  border-color: #bbf0cc;
+  cursor: pointer;
+  transition: background 0.12s ease, transform 0.1s ease;
+}
+
+.slot-btn.open:hover {
+  background: #d3f5e0;
+  transform: translateY(-1px);
+}
+
+.slot-btn.booked {
+  background: var(--danger-soft);
+  color: #b91c1c;
+  border-color: #f7c9c7;
+  opacity: 0.85;
+}

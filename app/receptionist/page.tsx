@@ -2,12 +2,28 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/session";
 import { listDoctors } from "@/src/adminHandlers";
 import {
+  formatWeekParam,
+  getWeekStart,
   listDoctorsWithTodayStatus,
   listTodayAppointments,
-  listTodayAvailability,
+  listWeekSlots,
   searchPatients,
 } from "@/src/receptionistHandlers";
 import { addPatientAction, bookWalkInAction, checkInAction } from "@/lib/actions/receptionist";
+
+function slotQuery(params: {
+  doctorId: string;
+  patientName: string;
+  patientPhone: string;
+  week?: string;
+}) {
+  const q = new URLSearchParams();
+  q.set("doctorId", params.doctorId);
+  if (params.patientName) q.set("patientName", params.patientName);
+  if (params.patientPhone) q.set("patientPhone", params.patientPhone);
+  if (params.week) q.set("week", params.week);
+  return `/receptionist?${q.toString()}#assign-doctor`;
+}
 
 export default async function ReceptionistPage({
   searchParams,
@@ -20,6 +36,7 @@ export default async function ReceptionistPage({
     added?: string;
     patientName?: string;
     patientPhone?: string;
+    week?: string;
   }>;
 }) {
   const session = await getSession();
@@ -35,9 +52,16 @@ export default async function ReceptionistPage({
 
   const activeDoctors = allDoctors.filter((d) => d.active);
   const selectedDoctorId = params.doctorId ?? "";
-  const availability = selectedDoctorId
-    ? await listTodayAvailability(session.clinicId, selectedDoctorId)
-    : [];
+
+  const weekStart = getWeekStart(params.week);
+  const prevWeekStart = new Date(weekStart);
+  prevWeekStart.setDate(prevWeekStart.getDate() - 7);
+  const nextWeekStart = new Date(weekStart);
+  nextWeekStart.setDate(nextWeekStart.getDate() + 7);
+  const thisWeekStart = getWeekStart();
+  const canGoBack = weekStart > thisWeekStart;
+
+  const week = selectedDoctorId ? await listWeekSlots(session.clinicId, selectedDoctorId, weekStart) : [];
 
   const patientQuery = params.patientQuery ?? "";
   const patientResults = patientQuery ? await searchPatients(session.clinicId, patientQuery) : [];
@@ -197,77 +221,124 @@ export default async function ReceptionistPage({
             <a href="/receptionist#assign-doctor">choose a different patient</a>
           </p>
         ) : (
-          <p className="muted">
-            No patient selected — find or add one above, or fill in their details manually below once
-            you pick a doctor and time.
-          </p>
+          <p className="muted">Find or add a patient above first — then pick a doctor and an open slot below.</p>
         )}
 
         {params.added === "1" && <p style={{ color: "var(--success)" }}>Patient saved.</p>}
+        {params.error === "missing" && <p className="error">Something went wrong — try picking the slot again.</p>}
+        {params.booked === "1" && (
+          <p style={{ color: "var(--success)" }}>Appointment booked — the doctor will see them once checked in.</p>
+        )}
 
-        <form method="get" style={{ marginBottom: 16, marginTop: 12 }}>
-          {hasSelectedPatient && (
-            <>
+        {hasSelectedPatient && (
+          <>
+            <form method="get" style={{ marginBottom: 16, marginTop: 12 }}>
               <input type="hidden" name="patientName" value={selectedPatientName} />
               <input type="hidden" name="patientPhone" value={selectedPatientPhone} />
-            </>
-          )}
-          <label>
-            Doctor (only shows doctors with availability today)
-            <select name="doctorId" defaultValue={selectedDoctorId}>
-              <option value="">Choose a doctor</option>
-              {activeDoctors.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name} — {d.department.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button type="submit" className="secondary" style={{ marginTop: 8 }}>
-            Show today&apos;s open slots
-          </button>
-        </form>
+              <label>
+                Doctor
+                <select name="doctorId" defaultValue={selectedDoctorId}>
+                  <option value="">Choose a doctor</option>
+                  {activeDoctors.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name} — {d.department.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button type="submit" className="secondary" style={{ marginTop: 8 }}>
+                Show availability
+              </button>
+            </form>
 
-        {params.error === "missing" && <p className="error">Fill in patient name, phone, and pick a slot.</p>}
-        {params.booked === "1" && <p style={{ color: "var(--success)" }}>Appointment booked — the doctor will see them once checked in.</p>}
+            {selectedDoctorId && (
+              <div>
+                <div className="week-nav">
+                  <a
+                    href={
+                      canGoBack
+                        ? slotQuery({
+                            doctorId: selectedDoctorId,
+                            patientName: selectedPatientName,
+                            patientPhone: selectedPatientPhone,
+                            week: formatWeekParam(prevWeekStart),
+                          })
+                        : undefined
+                    }
+                    aria-disabled={!canGoBack}
+                    style={!canGoBack ? { color: "var(--text-muted)", pointerEvents: "none" } : undefined}
+                  >
+                    ← Previous week
+                  </a>
+                  <span className="range">
+                    {weekStart.toLocaleDateString(undefined, { month: "short", day: "numeric" })} –{" "}
+                    {nextWeekStart.toLocaleDateString(undefined, {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    })}
+                  </span>
+                  <a
+                    href={slotQuery({
+                      doctorId: selectedDoctorId,
+                      patientName: selectedPatientName,
+                      patientPhone: selectedPatientPhone,
+                      week: formatWeekParam(nextWeekStart),
+                    })}
+                  >
+                    Next week →
+                  </a>
+                </div>
 
-        {selectedDoctorId && (
-          <form action={bookWalkInAction} className="stack">
-            <input type="hidden" name="doctorId" value={selectedDoctorId} />
-            <label>
-              Open slot today
-              <select name="slotId" required defaultValue="">
-                <option value="" disabled>
-                  {availability.length === 0 ? "No open slots left today" : "Choose a time"}
-                </option>
-                {availability.map((slot) => (
-                  <option key={slot.id} value={slot.id}>
-                    {slot.startsAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                  </option>
+                <p className="muted" style={{ fontSize: 12, marginBottom: 8 }}>
+                  <span className="slot-btn open" style={{ marginRight: 6, cursor: "default" }}>
+                    green
+                  </span>
+                  open — click to book &nbsp;·&nbsp;
+                  <span className="slot-btn booked" style={{ marginLeft: 6, cursor: "default" }}>
+                    red
+                  </span>
+                  already taken
+                </p>
+
+                {week.map((day) => (
+                  <div className="day-row" key={day.date.toISOString()}>
+                    <div className="day-label">
+                      {day.date.toLocaleDateString(undefined, { weekday: "short" })}
+                      <span className="day-sub">
+                        {day.date.toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                      </span>
+                    </div>
+                    <div className="slot-list">
+                      {day.slots.length === 0 ? (
+                        <span className="muted" style={{ fontSize: 12.5 }}>
+                          Not working this day
+                        </span>
+                      ) : (
+                        day.slots.map((slot) =>
+                          slot.status === "OPEN" ? (
+                            <form action={bookWalkInAction} key={slot.id}>
+                              <input type="hidden" name="doctorId" value={selectedDoctorId} />
+                              <input type="hidden" name="slotId" value={slot.id} />
+                              <input type="hidden" name="patientName" value={selectedPatientName} />
+                              <input type="hidden" name="patientPhone" value={selectedPatientPhone} />
+                              <button type="submit" className="slot-btn open">
+                                {slot.startsAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                              </button>
+                            </form>
+                          ) : (
+                            <span className="slot-btn booked" key={slot.id}>
+                              {slot.startsAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                            </span>
+                          ),
+                        )
+                      )}
+                    </div>
+                  </div>
                 ))}
-              </select>
-            </label>
-            {hasSelectedPatient ? (
-              <>
-                <input type="hidden" name="patientName" value={selectedPatientName} />
-                <input type="hidden" name="patientPhone" value={selectedPatientPhone} />
-              </>
-            ) : (
-              <>
-                <label>
-                  Patient name
-                  <input name="patientName" required />
-                </label>
-                <label>
-                  Patient phone
-                  <input name="patientPhone" placeholder="+9665XXXXXXXX" required />
-                </label>
-              </>
+              </div>
             )}
-            <button type="submit" disabled={availability.length === 0}>
-              Confirm appointment
-            </button>
-          </form>
+          </>
         )}
       </div>
 
