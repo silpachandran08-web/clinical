@@ -26,11 +26,33 @@ enum SlotStatus {
   BLOCKED
 }
 
+// Full visit lifecycle, not just "booked or not": CONFIRMED (booked, patient
+// hasn't arrived) -> CHECKED_IN (receptionist marks arrival) -> IN_PROGRESS
+// (doctor started the consultation) -> COMPLETED (notes/prescription saved).
+// CANCELLED/NO_SHOW are terminal alternatives from CONFIRMED or CHECKED_IN.
 enum AppointmentStatus {
   CONFIRMED
-  CANCELLED
+  CHECKED_IN
+  IN_PROGRESS
   COMPLETED
+  CANCELLED
   NO_SHOW
+}
+
+enum UserRole {
+  CLINIC_ADMIN
+  RECEPTIONIST
+  DOCTOR
+}
+
+// Tracked from day one so the eventual payment integration has data to work
+// with; not enforced yet (nothing blocks access when a trial lapses) since
+// there's no way to pay to unblock until billing is wired up.
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
 }
 
 enum MessageDirection {
@@ -52,21 +74,52 @@ enum IntegrationMode {
 }
 
 model Clinic {
-  id              String          @id @default(cuid())
-  name            String
-  timezone        String          @default("Asia/Riyadh")
-  defaultLocale   Locale          @default(AR)
-  whatsappNumber  String          @unique
-  weekendDays     Int[]           @default([5, 6]) // Fri=5, Sat=6 (0=Sun..6=Sat)
-  integrationMode IntegrationMode @default(NATIVE)
-  integrationConfig Json?         // adapter-specific connection details
-  createdAt       DateTime        @default(now())
+  id                 String             @id @default(cuid())
+  name               String
+  timezone           String             @default("Asia/Riyadh")
+  defaultLocale      Locale             @default(AR)
+  whatsappNumber     String?            @unique // null until the clinic configures WhatsApp
+  weekendDays        Int[]              @default([5, 6]) // Fri=5, Sat=6 (0=Sun..6=Sat)
+  integrationMode    IntegrationMode    @default(NATIVE)
+  integrationConfig  Json?              // adapter-specific connection details
+  trialEndsAt        DateTime
+  subscriptionStatus SubscriptionStatus @default(TRIALING)
+  createdAt          DateTime           @default(now())
 
+  users         User[]
   departments   Department[]
   doctors       Doctor[]
   patients      Patient[]
   appointments  Appointment[]
   conversations Conversation[]
+}
+
+// A person who can log in — scoped to exactly one clinic and one role.
+// Auth is passwordless (email OTP, see lib/auth.ts): whoever controls the
+// email controls the account, there is no separate password to manage.
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  role      UserRole
+  clinicId  String
+  clinic    Clinic   @relation(fields: [clinicId], references: [id])
+  doctorId  String?  @unique // set only when role = DOCTOR, links to their Doctor row
+  doctor    Doctor?  @relation(fields: [doctorId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@index([clinicId])
+}
+
+model OtpCode {
+  id         String    @id @default(cuid())
+  email      String
+  code       String
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([email, code])
 }
 
 // Departments are how a clinic organizes doctors (e.g. "Dermatology",
@@ -94,9 +147,11 @@ model Doctor {
   active       Boolean    @default(true)
   createdAt    DateTime   @default(now())
 
-  workingHours WorkingHours[]
-  slots        Slot[]
-  appointments Appointment[]
+  workingHours  WorkingHours[]
+  slots         Slot[]
+  appointments  Appointment[]
+  consultations Consultation[]
+  user          User? // set when a User with role=DOCTOR is linked to this doctor
 
   @@index([clinicId])
   @@index([departmentId])
@@ -143,26 +198,51 @@ model Patient {
 
   appointments  Appointment[]
   conversations Conversation[]
+  consultations Consultation[]
 
   @@unique([clinicId, phone])
 }
 
 model Appointment {
-  id            String            @id @default(cuid())
-  clinicId      String
-  clinic        Clinic            @relation(fields: [clinicId], references: [id])
-  doctorId      String
-  doctor        Doctor            @relation(fields: [doctorId], references: [id])
-  patientId     String
-  patient       Patient           @relation(fields: [patientId], references: [id])
-  slotId        String            @unique
-  slot          Slot              @relation(fields: [slotId], references: [id])
-  status        AppointmentStatus @default(CONFIRMED)
-  reason        String?           // free-text, logistics only (e.g. "follow-up") — never clinical advice
+  id             String            @id @default(cuid())
+  clinicId       String
+  clinic         Clinic            @relation(fields: [clinicId], references: [id])
+  doctorId       String
+  doctor         Doctor            @relation(fields: [doctorId], references: [id])
+  patientId      String
+  patient        Patient           @relation(fields: [patientId], references: [id])
+  slotId         String            @unique
+  slot           Slot              @relation(fields: [slotId], references: [id])
+  status         AppointmentStatus @default(CONFIRMED)
+  reason         String?           // free-text, logistics only (e.g. "follow-up") — never clinical advice
+  bookedByStaff  Boolean           @default(false) // true for receptionist walk-ins, false for WhatsApp bookings
+  checkedInAt    DateTime?
+  startedAt      DateTime?
   reminderSentAt DateTime?
-  createdAt     DateTime          @default(now())
+  createdAt      DateTime          @default(now())
+
+  consultation Consultation?
 
   @@index([clinicId, status])
+}
+
+// A doctor's notes + prescription for one completed visit. Real clinical
+// data — a step beyond the "logistics only" scope everything else here
+// keeps to. Only reachable through the doctor's own scoped queries.
+model Consultation {
+  id            String      @id @default(cuid())
+  appointmentId String      @unique
+  appointment   Appointment @relation(fields: [appointmentId], references: [id])
+  doctorId      String
+  doctor        Doctor      @relation(fields: [doctorId], references: [id])
+  patientId     String
+  patient       Patient     @relation(fields: [patientId], references: [id])
+  notes         String?
+  prescription  String?
+  createdAt     DateTime    @default(now())
+
+  @@index([patientId])
+  @@index([doctorId])
 }
 
 model Conversation {

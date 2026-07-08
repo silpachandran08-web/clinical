@@ -1,21 +1,23 @@
 import { redirect } from "next/navigation";
 import {
-  getFirstClinic,
+  getClinic,
   listClinicAppointments,
   listDepartments,
   listDoctors,
   listPatients,
 } from "@/src/adminHandlers";
+import { getSession } from "@/lib/session";
 
 export default async function AdminHomePage() {
-  const clinic = await getFirstClinic();
-  if (!clinic) redirect("/admin/clinic");
+  const session = await getSession();
+  if (!session) redirect("/login");
 
-  const [departments, doctors, patients, appointments] = await Promise.all([
-    listDepartments(clinic.id),
-    listDoctors(clinic.id),
-    listPatients(clinic.id),
-    listClinicAppointments(clinic.id),
+  const [clinic, departments, doctors, patients, appointments] = await Promise.all([
+    getClinic(session.clinicId),
+    listDepartments(session.clinicId),
+    listDoctors(session.clinicId),
+    listPatients(session.clinicId),
+    listClinicAppointments(session.clinicId),
   ]);
 
   const now = new Date();
@@ -24,7 +26,7 @@ export default async function AdminHomePage() {
   return (
     <div>
       <h1>{clinic.name}</h1>
-      <p className="muted">WhatsApp number: {clinic.whatsappNumber}</p>
+      <p className="muted">WhatsApp number: {clinic.whatsappNumber ?? "not set yet — configure it on the Clinic tab"}</p>
 
       <div className="card" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
         <Stat label="Departments" value={departments.length} href="/admin/departments" />

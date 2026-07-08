@@ -1,8 +1,17 @@
-// Uses the Web Crypto API (not node:crypto) so this same code runs in both
-// the Edge middleware and Node Server Actions without a runtime-specific fork.
+// Session tokens are signed with the Web Crypto API. proxy.ts (Next.js 16)
+// and Server Actions both run on the Node.js runtime, so Buffer is fine here.
 
-export const SESSION_COOKIE_NAME = "admin_session";
-const SESSION_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
+export const SESSION_COOKIE_NAME = "session";
+const SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000;
+
+export type UserRole = "CLINIC_ADMIN" | "RECEPTIONIST" | "DOCTOR";
+
+export interface SessionPayload {
+  userId: string;
+  clinicId: string;
+  role: UserRole;
+  doctorId?: string | null; // set only when role = DOCTOR
+}
 
 const encoder = new TextEncoder();
 
@@ -12,10 +21,18 @@ function getKey(secret: string): Promise<CryptoKey> {
   ]);
 }
 
-function toHex(buffer: ArrayBuffer): string {
-  return Array.from(new Uint8Array(buffer))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
+function base64UrlEncode(input: string): string {
+  return Buffer.from(input, "utf8").toString("base64url");
+}
+
+function base64UrlDecode(input: string): string {
+  return Buffer.from(input, "base64url").toString("utf8");
+}
+
+async function sign(data: string, secret: string): Promise<string> {
+  const key = await getKey(secret);
+  const signature = await crypto.subtle.sign("HMAC", key, encoder.encode(data));
+  return Buffer.from(signature).toString("base64url");
 }
 
 function timingSafeEqual(a: string, b: string): boolean {
@@ -25,20 +42,28 @@ function timingSafeEqual(a: string, b: string): boolean {
   return mismatch === 0;
 }
 
-export async function createSessionToken(secret: string): Promise<string> {
-  const expiresAt = Date.now() + SESSION_DURATION_MS;
-  const key = await getKey(secret);
-  const signature = await crypto.subtle.sign("HMAC", key, encoder.encode(String(expiresAt)));
-  return `${expiresAt}.${toHex(signature)}`;
+export async function createSessionToken(payload: SessionPayload, secret: string): Promise<string> {
+  const body = base64UrlEncode(JSON.stringify({ ...payload, expiresAt: Date.now() + SESSION_DURATION_MS }));
+  const signature = await sign(body, secret);
+  return `${body}.${signature}`;
 }
 
-export async function verifySessionToken(token: string | undefined, secret: string): Promise<boolean> {
-  if (!token) return false;
-  const [expiresAtRaw, signatureHex] = token.split(".");
-  const expiresAt = Number(expiresAtRaw);
-  if (!expiresAt || !signatureHex || Date.now() > expiresAt) return false;
+export async function verifySessionToken(
+  token: string | undefined,
+  secret: string,
+): Promise<SessionPayload | null> {
+  if (!token) return null;
+  const [body, signature] = token.split(".");
+  if (!body || !signature) return null;
 
-  const key = await getKey(secret);
-  const expectedSignature = await crypto.subtle.sign("HMAC", key, encoder.encode(String(expiresAt)));
-  return timingSafeEqual(toHex(expectedSignature), signatureHex);
+  const expectedSignature = await sign(body, secret);
+  if (!timingSafeEqual(expectedSignature, signature)) return null;
+
+  try {
+    const parsed = JSON.parse(base64UrlDecode(body)) as SessionPayload & { expiresAt: number };
+    if (!parsed.expiresAt || Date.now() > parsed.expiresAt) return null;
+    return { userId: parsed.userId, clinicId: parsed.clinicId, role: parsed.role, doctorId: parsed.doctorId };
+  } catch {
+    return null;
+  }
 }

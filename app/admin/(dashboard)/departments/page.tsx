@@ -1,11 +1,13 @@
 import { redirect } from "next/navigation";
-import { getFirstClinic, listDepartments } from "@/src/adminHandlers";
+import { listDepartments } from "@/src/adminHandlers";
 import { addDepartmentAction } from "@/lib/actions/departments";
+import { getSession } from "@/lib/session";
 
 export default async function DepartmentsPage() {
-  const clinic = await getFirstClinic();
-  if (!clinic) redirect("/admin/clinic");
-  const departments = await listDepartments(clinic.id);
+  const session = await getSession();
+  if (!session) redirect("/login");
+
+  const departments = await listDepartments(session.clinicId);
 
   return (
     <div>
@@ -14,7 +16,6 @@ export default async function DepartmentsPage() {
       <div className="card">
         <h2>Add a department</h2>
         <form action={addDepartmentAction} className="stack">
-          <input type="hidden" name="clinicId" value={clinic.id} />
           <label>
             Name
             <input name="name" placeholder="e.g. Dermatology" required />

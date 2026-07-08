@@ -1,35 +1,45 @@
 # Clinic WhatsApp Assistant
 
-An AI receptionist that lives on a clinic's WhatsApp number: a patient asks
-for an appointment in natural language (Arabic or English), the assistant
-checks real availability and books it — no app, no portal, no human typing
-on the other end, but it should read like one. Built for a single clinic in
-Saudi Arabia first, structured so onboarding clinic #2 (or clinic #50) is
-configuration, not a rewrite.
+A multi-tenant SaaS product: clinics register themselves, get a 7-day free
+trial, and run their booking operation through three role-scoped
+dashboards — while their patients book appointments over WhatsApp by
+chatting naturally (Arabic or English) with an AI receptionist that never
+invents availability or gives medical advice.
 
 Want to deploy this for a quick trial with friends (Vercel + Neon + a free
 Meta test WhatsApp number)? See [DEPLOY.md](./DEPLOY.md) for the exact steps.
 
-See the architecture diagram shared in chat for the full picture. Short version:
+See the architecture diagrams shared in chat for the full picture. Short version:
 
 ```
+Clinic registers (email + clinic name) -> email one-time code -> 7-day trial starts
+                                                       |
 Patient (WhatsApp) -> Unifonic/Meta gateway -> Conversation Orchestrator (Claude, tool-use)
                                                        |
                                           Scheduling Core (Postgres, transactional booking)
                                                        |
-                                          EHR Adapter interface (Native / FHIR / Sheets)
+                       /admin (clinic owner)  /receptionist (front desk)  /doctor (queue + notes)
 ```
 
 ## Why these choices
 
-- **Channel-first, not app-first**: the patient never installs anything. WhatsApp is
-  already the default channel for clinics in Saudi Arabia, so the "product" is a phone
-  number, not a webpage.
-- **Unifonic as the WhatsApp BSP**: KSA-headquartered Meta Business Partner, handles
-  Arabic template approval, SAR billing, and has a friendlier data-handling story for
-  Saudi PDPL than a foreign BSP. A `MetaCloudProvider` is included as a documented
-  fallback/alternative — swapping providers means changing one `.env` value
-  (`WHATSAPP_PROVIDER`), never touching the orchestrator or booking logic.
+- **Self-serve, not us-onboards-them**: a clinic signs up with just an email and
+  clinic name — no sales call, no us creating their account. `src/authService.ts`'s
+  `registerClinicAndAdmin` is the entire onboarding transaction.
+- **Passwordless (email one-time codes)**: no password to forget, reset, or leak.
+  `EmailProvider` (`src/email/`) is swappable the same way `WhatsAppProvider` is —
+  `ConsoleEmailProvider` logs codes to the terminal for free local testing (with a
+  fixed dev bypass code, see `.env.example`), `ResendEmailProvider` is the real one
+  for production.
+- **Three roles, one data model**: `CLINIC_ADMIN` configures the clinic,
+  `RECEPTIONIST` runs the front desk (calendar, walk-ins, check-in), `DOCTOR` runs
+  their own patient queue and writes consultation notes. Every `User` belongs to
+  exactly one clinic and one role (`prisma/schema.prisma`) — tenant isolation is
+  enforced by always deriving `clinicId` from the verified session
+  (`lib/session.ts`), never from client-submitted form data.
+- **Trial tracked, not enforced yet**: `Clinic.trialEndsAt` / `subscriptionStatus`
+  exist from day one so payment integration has something to plug into, but nothing
+  blocks access when a trial lapses — there's no way to pay to unblock yet.
 - **Claude with tool-use as the "brain"**: the LLM never invents availability or
   confirms a booking on its own — it can only report what `check_availability` /
   `book_slot` actually returned from the database. This is what makes "feels human,
@@ -38,49 +48,60 @@ Patient (WhatsApp) -> Unifonic/Meta gateway -> Conversation Orchestrator (Claude
   booking logic only ever talk to the `EhrAdapter` interface. Today only `NativeAdapter`
   (our own Postgres) is wired up. A clinic that already runs a system — especially one
   already integrated with **NPHIES** (Saudi's FHIR-based national health exchange) —
-  gets a `FhirAdapter` implementation instead of a data migration. This is the literal
-  mechanism behind "plug into any existing clinical solution."
+  gets a `FhirAdapter` implementation instead of a data migration.
 
 ## Project layout
 
 ```
-prisma/schema.prisma       clinics, departments, doctors, working hours, slots, patients, appointments, conversation log
+prisma/schema.prisma       clinics, users, departments, doctors, slots, patients, appointments, consultations
 src/config/env.ts          typed, fail-fast env loading
 src/whatsapp/               WhatsAppProvider interface + Unifonic/Meta implementations
+src/email/                  EmailProvider interface + Console (dev)/Resend (prod) implementations
+src/authService.ts          OTP generation/verification, clinic+admin registration
 src/ai/                     system prompt, tool definitions, Claude tool-use loop
-src/scheduling/             pure slot-time generator + transactional booking service (double-booking guard)
+src/scheduling/              pure slot-time generator + transactional booking service (double-booking guard)
 src/integrations/           EhrAdapter interface + Native/FHIR adapters, adapter registry
 src/webhookHandler.ts       framework-agnostic webhook logic (used by app/api/webhook)
-src/adminHandlers.ts        framework-agnostic clinic/department/doctor logic (used by the dashboard's Server Actions)
+src/adminHandlers.ts        clinic/department/doctor/staff logic — always takes clinicId as a parameter
+src/receptionistHandlers.ts today's calendar, walk-in booking, check-in
+src/doctorHandlers.ts       a doctor's own queue, starting/completing a consultation
 app/api/                    Next.js Route Handlers: WhatsApp webhook, health check
-app/admin/                  the admin dashboard (Server Components + Server Actions)
-lib/auth.ts, proxy.ts       session-cookie auth and the route guard for /admin/**
+app/login/, app/register/   passwordless auth pages (email -> one-time code)
+app/admin/                  clinic owner dashboard
+app/receptionist/           front-desk dashboard
+app/doctor/                 doctor's queue + consultation notes
+lib/auth.ts, proxy.ts       session-cookie signing and the role-based route guard
+lib/session.ts              reads the verified session in Server Components
 lib/actions/                Server Actions the dashboard forms submit to
 tests/                      unit tests (no live DB needed)
 ```
 
 One Next.js app serves everything — the WhatsApp webhook (`/api/webhook`),
-the health check (`/api/health`), and the admin dashboard (`/admin`) — so
-there's no separate local-vs-production routing split to keep in sync.
+the health check (`/api/health`), and all three dashboards. `proxy.ts` gates
+`/admin/**`, `/receptionist/**`, `/doctor/**` to a valid session with the
+matching role, redirecting anyone else to their own home or to `/login`.
 See [DEPLOY.md](./DEPLOY.md) for the full deployment walkthrough.
 
 ## Running it
 
 ```bash
 npm install
-cp .env.example .env        # fill in ANTHROPIC_API_KEY, DATABASE_URL, ADMIN_PASSWORD, SESSION_SECRET
+cp .env.example .env        # fill in ANTHROPIC_API_KEY, DATABASE_URL, SESSION_SECRET
 npx prisma migrate dev      # creates the schema against a local (or Neon) Postgres
 npm run dev                 # starts Next.js on :3000
 ```
 
-Open `http://localhost:3000/admin`, log in with `ADMIN_PASSWORD`, and use the
-dashboard to create the clinic, add departments, and add doctors (with their
-weekly working hours — this also materializes the next 30 days of bookable
-slots automatically). Point the Unifonic (or Meta) webhook at
-`POST /api/webhook` and the number is live.
+Go to `http://localhost:3000/register`, enter a clinic name and any email.
+With the default `EMAIL_PROVIDER=console`, the one-time code is printed to
+the terminal — or just enter **09876**, a fixed dev-only bypass code that
+only works when no real email provider is configured (see `.env.example`).
+That creates the clinic and logs you in as `CLINIC_ADMIN` on `/admin`.
 
-The dashboard is single-admin (one shared password) and single-clinic for
-now — see "Not yet built" below for what real multi-clinic self-signup would need.
+From there: set the clinic's WhatsApp number, add a department, add a
+doctor (with weekly working hours — this also materializes 30 days of
+bookable slots), then use the **Staff** page to invite a receptionist and/or
+a doctor login by email — same passwordless flow, no password to hand them.
+Point the Unifonic (or Meta) webhook at `POST /api/webhook` and the number is live.
 
 ## Testing strategy
 
@@ -99,19 +120,24 @@ now — see "Not yet built" below for what real multi-clinic self-signup would n
   bot must redirect, never diagnose. Emergency keywords ("chest pain", "can't breathe") ->
   immediate escalation message + `escalate_to_human(urgent: true)`, never a routine slot
   offer. These should be the first eval cases written, before more booking features.
+- **Tenant isolation**: every admin/receptionist/doctor Server Action must derive
+  `clinicId` (and `doctorId` for doctor actions) from `getSession()`, never from a
+  client-submitted field. Worth an explicit regression test — this is the boundary
+  that keeps one clinic's data from being reachable by another.
 
 ## Business / rollout notes
 
-- **MVP scope**: one clinic, one WhatsApp number, a handful of doctors, single shared admin
-  login (not per-clinic accounts) — real multi-clinic self-signup is future work, not MVP.
-- **Onboarding a second clinic** should be: create a `Clinic` row, choose `integrationMode`,
-  point the WhatsApp number at the same webhook. No redeploy of core logic.
-- **Monetization** (later): per-clinic SaaS fee, or per-booking, tiered by integration
-  complexity (native vs. adapter work for an existing EHR).
-- **Compliance**: Saudi PDPL — store only what's needed for scheduling (name, phone,
-  appointment time, optional free-text reason). No clinical/diagnostic data in this system
-  by design; that stays in the clinic's actual EHR. Revisit data residency (in-Kingdom
-  hosting) before handling anything beyond logistics.
+- **Self-serve trial**: register with email + clinic name -> 7-day trial
+  (`Clinic.trialEndsAt`) -> monthly subscription. Payment is not integrated yet, so a
+  lapsed trial is tracked (`subscriptionStatus`) but not enforced — nothing blocks
+  the dashboard today.
+- **Monetization** (later): per-clinic monthly fee once billing is wired up; consider
+  tiering by integration complexity (native vs. adapter work for an existing EHR).
+- **Compliance**: Saudi PDPL, and now genuinely relevant — `Consultation` (doctor notes
+  + prescription) is real clinical/health data, not just scheduling logistics. It's
+  scoped so only that clinic's own staff can read it (`listPatientHistory` filters by
+  `clinicId`), but encryption-at-rest specifics, audit logging, and data residency
+  (in-Kingdom hosting) are a hardening pass this hasn't had yet.
 - **Human-in-the-loop is not optional**: `escalate_to_human` plus `STAFF_ESCALATION_WEBHOOK_URL`
   is the safety valve for emergencies, complaints, and anything the model isn't confident
   about. Front-desk staff should get that escalation in a channel they actually watch
@@ -119,8 +145,14 @@ now — see "Not yet built" below for what real multi-clinic self-signup would n
 
 ## Not yet built (next up)
 
+- Payment integration — `subscriptionStatus` exists but nothing charges a card or
+  blocks access when a trial lapses.
 - Appointment reminder job (WhatsApp template message N hours before the slot).
-- Reschedule flow from the dashboard (currently cancel via the dashboard, rebook via WhatsApp).
-- Real multi-clinic self-signup (per-clinic accounts and login, not one shared admin password).
+- Reschedule flow (currently cancel via `/admin`, rebook via WhatsApp or a new walk-in).
+- Multiple doctors seeing patients concurrently isn't a UI constraint (each doctor's
+  `/doctor` queue is independent), but the front-desk "who's with a patient" board on
+  `/receptionist` has only been tested with one doctor at a time.
 - `SheetsAdapter` for a clinic with literally no existing system beyond a spreadsheet.
 - Load/concurrency test suite against a real Postgres.
+- A way for a clinic admin to remove/deactivate a staff account (currently only
+  invite, no revoke).

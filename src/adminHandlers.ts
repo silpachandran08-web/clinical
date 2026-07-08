@@ -3,21 +3,24 @@ import { prisma } from "./db/client";
 import { generateSlotsForDoctor } from "./scheduling/slotGenerator";
 
 /**
- * Framework-agnostic admin logic, called from Server Actions in app/admin/*
- * (and reusable from a future public API if clinics ever self-serve directly).
+ * Framework-agnostic admin logic, called from Server Actions in app/admin/*.
+ *
+ * Security note: every function here takes `clinicId` as an explicit
+ * parameter that Server Actions must derive from the verified session
+ * (lib/session.ts), never from client-submitted form data. This is what
+ * actually enforces tenant isolation now that clinics are real, separate
+ * customers instead of one trusted operator — a hidden `clinicId` form
+ * field would let one clinic write into another's data by editing HTML.
  */
 
-export const createClinicSchema = z.object({
+export const updateClinicSchema = z.object({
   name: z.string().min(1),
   whatsappNumber: z.string().min(1),
   timezone: z.string().optional(),
   defaultLocale: z.enum(["AR", "EN"]).optional(),
 });
 
-export const updateClinicSchema = createClinicSchema.extend({ id: z.string() });
-
 export const createDepartmentSchema = z.object({
-  clinicId: z.string(),
   name: z.string().min(1),
 });
 
@@ -29,45 +32,45 @@ const workingHoursSchema = z.object({
 });
 
 export const createDoctorSchema = z.object({
-  clinicId: z.string(),
   departmentId: z.string(),
   name: z.string().min(1),
   workingHours: z.array(workingHoursSchema).default([]),
 });
 
-export async function getFirstClinic() {
-  return prisma.clinic.findFirst({ orderBy: { createdAt: "asc" } });
+export const inviteStaffSchema = z.object({
+  email: z.string().email(),
+  role: z.enum(["RECEPTIONIST", "DOCTOR"]),
+  doctorId: z.string().optional(),
+});
+
+export async function getClinic(clinicId: string) {
+  return prisma.clinic.findUniqueOrThrow({ where: { id: clinicId } });
 }
 
-export async function createClinic(input: z.infer<typeof createClinicSchema>) {
-  return prisma.clinic.create({ data: input });
-}
-
-export async function updateClinic(input: z.infer<typeof updateClinicSchema>) {
-  const { id, ...data } = input;
-  return prisma.clinic.update({ where: { id }, data });
+export async function updateClinic(clinicId: string, input: z.infer<typeof updateClinicSchema>) {
+  return prisma.clinic.update({ where: { id: clinicId }, data: input });
 }
 
 export async function listDepartments(clinicId: string) {
   return prisma.department.findMany({ where: { clinicId }, orderBy: { name: "asc" } });
 }
 
-export async function createDepartment(input: z.infer<typeof createDepartmentSchema>) {
-  return prisma.department.create({ data: input });
+export async function createDepartment(clinicId: string, input: z.infer<typeof createDepartmentSchema>) {
+  return prisma.department.create({ data: { clinicId, name: input.name } });
 }
 
 export async function listDoctors(clinicId: string) {
   return prisma.doctor.findMany({
     where: { clinicId },
-    include: { department: true, workingHours: true },
+    include: { department: true, workingHours: true, user: true },
     orderBy: { name: "asc" },
   });
 }
 
-export async function createDoctor(input: z.infer<typeof createDoctorSchema>) {
+export async function createDoctor(clinicId: string, input: z.infer<typeof createDoctorSchema>) {
   const doctor = await prisma.doctor.create({
     data: {
-      clinicId: input.clinicId,
+      clinicId,
       departmentId: input.departmentId,
       name: input.name,
       workingHours: {
@@ -86,8 +89,8 @@ export async function createDoctor(input: z.infer<typeof createDoctorSchema>) {
   return { doctor, generatedSlots };
 }
 
-export async function setDoctorActive(doctorId: string, active: boolean) {
-  return prisma.doctor.update({ where: { id: doctorId }, data: { active } });
+export async function setDoctorActive(clinicId: string, doctorId: string, active: boolean) {
+  return prisma.doctor.updateMany({ where: { id: doctorId, clinicId }, data: { active } });
 }
 
 export async function listPatients(clinicId: string) {
@@ -103,5 +106,27 @@ export async function listClinicAppointments(clinicId: string) {
     where: { clinicId },
     include: { doctor: true, patient: true, slot: true },
     orderBy: { slot: { startsAt: "desc" } },
+  });
+}
+
+export async function listStaff(clinicId: string) {
+  return prisma.user.findMany({
+    where: { clinicId },
+    include: { doctor: true },
+    orderBy: { createdAt: "asc" },
+  });
+}
+
+export async function inviteStaff(clinicId: string, input: z.infer<typeof inviteStaffSchema>) {
+  if (input.role === "DOCTOR" && !input.doctorId) {
+    throw new Error("A doctor login must be linked to a doctor record");
+  }
+  return prisma.user.create({
+    data: {
+      clinicId,
+      email: input.email.trim().toLowerCase(),
+      role: input.role,
+      doctorId: input.role === "DOCTOR" ? input.doctorId : undefined,
+    },
   });
 }

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
-import { getFirstClinic, listDepartments, listDoctors } from "@/src/adminHandlers";
+import { listDepartments, listDoctors } from "@/src/adminHandlers";
 import { addDoctorAction, toggleDoctorActiveAction } from "@/lib/actions/doctors";
+import { getSession } from "@/lib/session";
 
 const DAYS = [
   { value: 0, label: "Sun" },
@@ -13,10 +14,13 @@ const DAYS = [
 ];
 
 export default async function DoctorsPage() {
-  const clinic = await getFirstClinic();
-  if (!clinic) redirect("/admin/clinic");
+  const session = await getSession();
+  if (!session) redirect("/login");
 
-  const [departments, doctors] = await Promise.all([listDepartments(clinic.id), listDoctors(clinic.id)]);
+  const [departments, doctors] = await Promise.all([
+    listDepartments(session.clinicId),
+    listDoctors(session.clinicId),
+  ]);
 
   if (departments.length === 0) {
     return (
@@ -36,7 +40,6 @@ export default async function DoctorsPage() {
       <div className="card">
         <h2>Add a doctor</h2>
         <form action={addDoctorAction} className="stack" style={{ maxWidth: 480 }}>
-          <input type="hidden" name="clinicId" value={clinic.id} />
           <label>
             Name
             <input name="name" placeholder="Dr. Fatima Al-Harbi" required />
@@ -98,6 +101,7 @@ export default async function DoctorsPage() {
                 <th>Name</th>
                 <th>Department</th>
                 <th>Working days</th>
+                <th>Login</th>
                 <th>Status</th>
                 <th></th>
               </tr>
@@ -108,6 +112,7 @@ export default async function DoctorsPage() {
                   <td>{doc.name}</td>
                   <td>{doc.department.name}</td>
                   <td>{doc.workingHours.map((wh) => DAYS[wh.dayOfWeek].label).join(", ") || "—"}</td>
+                  <td>{doc.user ? doc.user.email : <span className="muted">not invited</span>}</td>
                   <td>
                     <span className={`badge ${doc.active ? "success" : "danger"}`}>
                       {doc.active ? "Active" : "Inactive"}
@@ -128,6 +133,9 @@ export default async function DoctorsPage() {
           </table>
         )}
       </div>
+      <p className="muted">
+        Give a doctor their own login from the <a href="/admin/staff">Staff</a> page.
+      </p>
     </div>
   );
 }

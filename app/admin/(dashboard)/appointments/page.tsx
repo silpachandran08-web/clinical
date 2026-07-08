@@ -1,11 +1,13 @@
 import { redirect } from "next/navigation";
-import { getFirstClinic, listClinicAppointments } from "@/src/adminHandlers";
+import { listClinicAppointments } from "@/src/adminHandlers";
 import { cancelAppointmentAction } from "@/lib/actions/appointments";
+import { getSession } from "@/lib/session";
 
 export default async function AppointmentsPage() {
-  const clinic = await getFirstClinic();
-  if (!clinic) redirect("/admin/clinic");
-  const appointments = await listClinicAppointments(clinic.id);
+  const session = await getSession();
+  if (!session) redirect("/login");
+
+  const appointments = await listClinicAppointments(session.clinicId);
 
   return (
     <div>
@@ -33,16 +35,19 @@ export default async function AppointmentsPage() {
                   <td>
                     <span
                       className={`badge ${
-                        a.status === "CONFIRMED" ? "success" : a.status === "CANCELLED" ? "danger" : ""
+                        a.status === "CANCELLED" || a.status === "NO_SHOW"
+                          ? "danger"
+                          : a.status === "COMPLETED"
+                            ? "success"
+                            : ""
                       }`}
                     >
                       {a.status}
                     </span>
                   </td>
                   <td>
-                    {a.status === "CONFIRMED" && (
+                    {(a.status === "CONFIRMED" || a.status === "CHECKED_IN") && (
                       <form action={cancelAppointmentAction}>
-                        <input type="hidden" name="clinicId" value={clinic.id} />
                         <input type="hidden" name="appointmentId" value={a.id} />
                         <button type="submit" className="danger">
                           Cancel

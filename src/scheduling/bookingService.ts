@@ -33,6 +33,7 @@ export interface BookSlotParams {
   patientPhone: string;
   patientName: string;
   reason?: string;
+  bookedByStaff?: boolean; // true for receptionist walk-ins, false/omitted for WhatsApp bookings
 }
 
 /**
@@ -68,6 +69,7 @@ export async function bookSlot(params: BookSlotParams) {
         patientId: patient.id,
         slotId: slot.id,
         reason: params.reason,
+        bookedByStaff: params.bookedByStaff ?? false,
       },
     });
 

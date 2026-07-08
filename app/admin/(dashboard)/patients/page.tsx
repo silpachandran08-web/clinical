@@ -1,10 +1,12 @@
 import { redirect } from "next/navigation";
-import { getFirstClinic, listPatients } from "@/src/adminHandlers";
+import { listPatients } from "@/src/adminHandlers";
+import { getSession } from "@/lib/session";
 
 export default async function PatientsPage() {
-  const clinic = await getFirstClinic();
-  if (!clinic) redirect("/admin/clinic");
-  const patients = await listPatients(clinic.id);
+  const session = await getSession();
+  if (!session) redirect("/login");
+
+  const patients = await listPatients(session.clinicId);
 
   return (
     <div>

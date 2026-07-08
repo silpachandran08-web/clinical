@@ -12,8 +12,13 @@ export const env = {
   anthropicApiKey: required("ANTHROPIC_API_KEY"),
   claudeModel: process.env.CLAUDE_MODEL ?? "claude-sonnet-5",
 
-  adminPassword: required("ADMIN_PASSWORD"),
   sessionSecret: required("SESSION_SECRET"),
+
+  emailProvider: (process.env.EMAIL_PROVIDER ?? "console") as "console" | "resend",
+  resend: {
+    apiKey: process.env.RESEND_API_KEY ?? "",
+    fromEmail: process.env.RESEND_FROM_EMAIL ?? "onboarding@resend.dev",
+  },
 
   whatsappProvider: (process.env.WHATSAPP_PROVIDER ?? "unifonic") as "unifonic" | "meta",
 
