@@ -1,20 +1,100 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getSession } from "@/lib/session";
-import { listMyQueue } from "@/src/doctorHandlers";
+import { countCompletedToday, listMyQueue } from "@/src/doctorHandlers";
+import { searchPatients } from "@/src/receptionistHandlers";
 import { completeConsultationAction, startConsultationAction } from "@/lib/actions/doctor";
 
-export default async function DoctorQueuePage() {
+export default async function DoctorQueuePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
   const session = await getSession();
   if (!session || session.role !== "DOCTOR" || !session.doctorId) redirect("/login");
 
-  const queue = await listMyQueue(session.clinicId, session.doctorId);
+  const params = await searchParams;
+  const q = params.q ?? "";
+
+  const [queue, completedToday, searchResults] = await Promise.all([
+    listMyQueue(session.clinicId, session.doctorId),
+    countCompletedToday(session.clinicId, session.doctorId),
+    q ? searchPatients(session.clinicId, q) : Promise.resolve([]),
+  ]);
+
   const waiting = queue.filter((a) => a.status === "CHECKED_IN");
   const current = queue.find((a) => a.status === "IN_PROGRESS");
+  const now = new Date();
 
   return (
     <div>
-      <h1>Today&apos;s queue</h1>
+      <div className="page-header">
+        <h1>Today&apos;s queue</h1>
+        <span className="date">
+          {now.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+        </span>
+      </div>
+
+      <div className="stat-grid">
+        <div className="stat-card">
+          <div className="stat-value">{waiting.length}</div>
+          <div className="stat-label">Waiting</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-value">{current ? 1 : 0}</div>
+          <div className="stat-label">In consultation</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-value">{completedToday}</div>
+          <div className="stat-label">Completed today</div>
+        </div>
+      </div>
+
+      <div className="card">
+        <h2>Search patients</h2>
+        <form method="get" className="stack" style={{ marginBottom: 4 }}>
+          <label>
+            Name, phone, or email
+            <input name="q" defaultValue={q} placeholder="Search all patients at this clinic" />
+          </label>
+          <button type="submit" className="secondary" style={{ alignSelf: "flex-start" }}>
+            Search
+          </button>
+        </form>
+
+        {q && (
+          <div style={{ marginTop: 16 }}>
+            {searchResults.length === 0 ? (
+              <p className="empty-state">No patients match &quot;{q}&quot;.</p>
+            ) : (
+              <table>
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Phone</th>
+                    <th>Email</th>
+                    <th>Visits</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {searchResults.map((p) => (
+                    <tr key={p.id}>
+                      <td>{p.name ?? "—"}</td>
+                      <td>{p.phone}</td>
+                      <td>{p.email ?? "—"}</td>
+                      <td>{p._count.appointments}</td>
+                      <td>
+                        <Link href={`/doctor/patients/${p.id}`}>View history</Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+      </div>
 
       {current && (
         <div className="card" style={{ borderColor: "var(--accent)" }}>

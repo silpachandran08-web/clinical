@@ -2,7 +2,12 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { bookWalkIn, checkInAppointment } from "@/src/receptionistHandlers";
+import {
+  bookWalkIn,
+  checkInAppointment,
+  createPatient,
+  createPatientSchema,
+} from "@/src/receptionistHandlers";
 import { getSession } from "@/lib/session";
 
 export async function checkInAction(formData: FormData) {
@@ -29,4 +34,19 @@ export async function bookWalkInAction(formData: FormData) {
   await bookWalkIn({ clinicId: session.clinicId, slotId, patientPhone, patientName });
   revalidatePath("/receptionist");
   redirect("/receptionist?booked=1");
+}
+
+export async function addPatientAction(formData: FormData) {
+  const session = await getSession();
+  if (!session) throw new Error("Not authenticated");
+
+  const payload = createPatientSchema.parse({
+    name: String(formData.get("name") ?? ""),
+    phone: String(formData.get("phone") ?? ""),
+    email: String(formData.get("email") ?? ""),
+  });
+
+  await createPatient(session.clinicId, payload);
+  revalidatePath("/receptionist");
+  redirect(`/receptionist?patientQuery=${encodeURIComponent(payload.phone)}&added=1`);
 }

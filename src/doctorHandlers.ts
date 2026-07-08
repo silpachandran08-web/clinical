@@ -32,6 +32,17 @@ export async function listMyQueue(clinicId: string, doctorId: string) {
   });
 }
 
+export async function countCompletedToday(clinicId: string, doctorId: string) {
+  return prisma.appointment.count({
+    where: {
+      clinicId,
+      doctorId,
+      status: "COMPLETED",
+      slot: { startsAt: { gte: startOfToday(), lt: startOfTomorrow() } },
+    },
+  });
+}
+
 export async function startConsultation(clinicId: string, doctorId: string, appointmentId: string) {
   const result = await prisma.appointment.updateMany({
     where: { id: appointmentId, clinicId, doctorId, status: "CHECKED_IN" },

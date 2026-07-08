@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { listDepartments, listDoctors } from "@/src/adminHandlers";
-import { addDoctorAction, toggleDoctorActiveAction } from "@/lib/actions/doctors";
+import { addDoctorAction, deleteDoctorAction, toggleDoctorActiveAction } from "@/lib/actions/doctors";
 import { getSession } from "@/lib/session";
 
 const DAYS = [
@@ -13,9 +14,15 @@ const DAYS = [
   { value: 6, label: "Sat" },
 ];
 
-export default async function DoctorsPage() {
+export default async function DoctorsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
   const session = await getSession();
   if (!session) redirect("/login");
+
+  const params = await searchParams;
 
   const [departments, doctors] = await Promise.all([
     listDepartments(session.clinicId),
@@ -92,6 +99,7 @@ export default async function DoctorsPage() {
 
       <div className="card">
         <h2>All doctors</h2>
+        {params.error && <p className="error" style={{ marginBottom: 12 }}>{params.error}</p>}
         {doctors.length === 0 ? (
           <p className="empty-state">No doctors yet.</p>
         ) : (
@@ -119,13 +127,26 @@ export default async function DoctorsPage() {
                     </span>
                   </td>
                   <td>
-                    <form action={toggleDoctorActiveAction}>
-                      <input type="hidden" name="doctorId" value={doc.id} />
-                      <input type="hidden" name="active" value={String(doc.active)} />
-                      <button type="submit" className="secondary">
-                        {doc.active ? "Deactivate" : "Activate"}
-                      </button>
-                    </form>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <Link href={`/admin/doctors/${doc.id}/edit`}>
+                        <button type="button" className="secondary">
+                          Edit
+                        </button>
+                      </Link>
+                      <form action={toggleDoctorActiveAction}>
+                        <input type="hidden" name="doctorId" value={doc.id} />
+                        <input type="hidden" name="active" value={String(doc.active)} />
+                        <button type="submit" className="secondary">
+                          {doc.active ? "Deactivate" : "Activate"}
+                        </button>
+                      </form>
+                      <form action={deleteDoctorAction}>
+                        <input type="hidden" name="doctorId" value={doc.id} />
+                        <button type="submit" className="danger">
+                          Delete
+                        </button>
+                      </form>
+                    </div>
                   </td>
                 </tr>
               ))}

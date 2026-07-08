@@ -93,6 +93,65 @@ export async function setDoctorActive(clinicId: string, doctorId: string, active
   return prisma.doctor.updateMany({ where: { id: doctorId, clinicId }, data: { active } });
 }
 
+export const updateDoctorSchema = createDoctorSchema;
+
+/**
+ * Replaces the doctor's name/department/weekly hours. Existing booked slots
+ * are left alone (only OPEN — i.e. not-yet-booked — future slots are cleared
+ * and regenerated from the new hours), so changing a schedule can never
+ * silently cancel a patient's confirmed appointment.
+ */
+export async function updateDoctor(
+  clinicId: string,
+  doctorId: string,
+  input: z.infer<typeof updateDoctorSchema>,
+) {
+  const doctor = await prisma.doctor.findFirst({ where: { id: doctorId, clinicId } });
+  if (!doctor) throw new Error("Doctor not found");
+
+  await prisma.$transaction([
+    prisma.doctor.update({
+      where: { id: doctorId },
+      data: { name: input.name, departmentId: input.departmentId },
+    }),
+    prisma.workingHours.deleteMany({ where: { doctorId } }),
+    prisma.workingHours.createMany({
+      data: input.workingHours.map((wh) => ({
+        doctorId,
+        dayOfWeek: wh.dayOfWeek,
+        startTime: wh.startTime,
+        endTime: wh.endTime,
+        slotDurationMinutes: wh.slotDurationMinutes ?? 20,
+      })),
+    }),
+    prisma.slot.deleteMany({ where: { doctorId, status: "OPEN" } }),
+  ]);
+
+  await generateSlotsForDoctor(doctorId);
+}
+
+/**
+ * Only allowed when the doctor has no appointment history at all — otherwise
+ * this would orphan real appointment/consultation records. Deactivate
+ * instead for a doctor who's simply left the clinic.
+ */
+export async function deleteDoctor(clinicId: string, doctorId: string) {
+  const doctor = await prisma.doctor.findFirst({ where: { id: doctorId, clinicId } });
+  if (!doctor) throw new Error("Doctor not found");
+
+  const appointmentCount = await prisma.appointment.count({ where: { doctorId } });
+  if (appointmentCount > 0) {
+    throw new Error("This doctor has appointment history and can't be deleted — deactivate them instead.");
+  }
+
+  await prisma.$transaction([
+    prisma.user.deleteMany({ where: { doctorId } }),
+    prisma.slot.deleteMany({ where: { doctorId } }),
+    prisma.workingHours.deleteMany({ where: { doctorId } }),
+    prisma.doctor.delete({ where: { id: doctorId } }),
+  ]);
+}
+
 export async function listPatients(clinicId: string) {
   return prisma.patient.findMany({
     where: { clinicId },
@@ -129,4 +188,33 @@ export async function inviteStaff(clinicId: string, input: z.infer<typeof invite
       doctorId: input.role === "DOCTOR" ? input.doctorId : undefined,
     },
   });
+}
+
+export const updateStaffSchema = z.object({
+  role: z.enum(["RECEPTIONIST", "DOCTOR"]),
+  doctorId: z.string().optional(),
+});
+
+export async function updateStaff(clinicId: string, userId: string, input: z.infer<typeof updateStaffSchema>) {
+  const user = await prisma.user.findFirst({ where: { id: userId, clinicId } });
+  if (!user) throw new Error("Staff member not found");
+  if (user.role === "CLINIC_ADMIN") throw new Error("Can't change the clinic admin's role here");
+  if (input.role === "DOCTOR" && !input.doctorId) {
+    throw new Error("Pick which doctor record this login represents");
+  }
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: { role: input.role, doctorId: input.role === "DOCTOR" ? input.doctorId : null },
+  });
+}
+
+/** Revokes a staff member's access. A clinic admin can't remove their own account this way. */
+export async function removeStaff(clinicId: string, userId: string, requestingUserId: string) {
+  if (userId === requestingUserId) throw new Error("You can't remove your own account.");
+  const user = await prisma.user.findFirst({ where: { id: userId, clinicId } });
+  if (!user) throw new Error("Staff member not found");
+  if (user.role === "CLINIC_ADMIN") throw new Error("Can't remove the clinic admin account.");
+
+  await prisma.user.delete({ where: { id: userId } });
 }

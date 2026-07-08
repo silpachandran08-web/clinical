@@ -5,13 +5,14 @@ import {
   listDoctorsWithTodayStatus,
   listTodayAppointments,
   listTodayAvailability,
+  searchPatients,
 } from "@/src/receptionistHandlers";
-import { bookWalkInAction, checkInAction } from "@/lib/actions/receptionist";
+import { addPatientAction, bookWalkInAction, checkInAction } from "@/lib/actions/receptionist";
 
 export default async function ReceptionistPage({
   searchParams,
 }: {
-  searchParams: Promise<{ doctorId?: string; error?: string; booked?: string }>;
+  searchParams: Promise<{ doctorId?: string; error?: string; booked?: string; patientQuery?: string; added?: string }>;
 }) {
   const session = await getSession();
   if (!session) redirect("/login");
@@ -30,9 +31,40 @@ export default async function ReceptionistPage({
     ? await listTodayAvailability(session.clinicId, selectedDoctorId)
     : [];
 
+  const patientQuery = params.patientQuery ?? "";
+  const patientResults = patientQuery ? await searchPatients(session.clinicId, patientQuery) : [];
+
+  const waitingCount = doctorStatus.reduce((sum, d) => sum + d.waiting.length, 0);
+  const inProgressCount = doctorStatus.filter((d) => d.inProgressWith).length;
+  const now = new Date();
+
   return (
     <div>
-      <h1>Today</h1>
+      <div className="page-header">
+        <h1>Today</h1>
+        <span className="date">
+          {now.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+        </span>
+      </div>
+
+      <div className="stat-grid">
+        <div className="stat-card">
+          <div className="stat-value">{doctorStatus.length}</div>
+          <div className="stat-label">Doctors active</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-value">{appointments.length}</div>
+          <div className="stat-label">Appointments today</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-value">{inProgressCount}</div>
+          <div className="stat-label">In consultation</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-value">{waitingCount}</div>
+          <div className="stat-label">Waiting</div>
+        </div>
+      </div>
 
       <div className="card">
         <h2>Doctor status</h2>
@@ -66,6 +98,73 @@ export default async function ReceptionistPage({
             </tbody>
           </table>
         )}
+      </div>
+
+      <div className="card">
+        <h2>Find or add a patient</h2>
+        <form method="get" className="stack" style={{ marginBottom: 4 }}>
+          <label>
+            Search by name, phone, or email
+            <input name="patientQuery" defaultValue={patientQuery} placeholder="e.g. +9665... or jane@example.com" />
+          </label>
+          <button type="submit" className="secondary" style={{ alignSelf: "flex-start" }}>
+            Search
+          </button>
+        </form>
+
+        {params.added === "1" && <p style={{ color: "var(--success)", marginTop: 12 }}>Patient saved.</p>}
+
+        {patientQuery && (
+          <div style={{ marginTop: 16 }}>
+            {patientResults.length === 0 ? (
+              <p className="empty-state">No existing patient matches &quot;{patientQuery}&quot;. Add them below.</p>
+            ) : (
+              <table>
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Phone</th>
+                    <th>Email</th>
+                    <th>Visits</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {patientResults.map((p) => (
+                    <tr key={p.id}>
+                      <td>{p.name ?? "—"}</td>
+                      <td>{p.phone}</td>
+                      <td>{p.email ?? "—"}</td>
+                      <td>{p._count.appointments}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+
+        <hr className="divider" />
+
+        <h2 style={{ fontSize: 13, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.03em" }}>
+          Add a new patient
+        </h2>
+        <form action={addPatientAction} className="stack">
+          <label>
+            Name
+            <input name="name" required />
+          </label>
+          <label>
+            Phone
+            <input name="phone" placeholder="+9665XXXXXXXX" required />
+          </label>
+          <label>
+            Email (optional)
+            <input name="email" type="email" placeholder="jane@example.com" />
+          </label>
+          <button type="submit" className="secondary" style={{ alignSelf: "flex-start" }}>
+            Save patient
+          </button>
+        </form>
       </div>
 
       <div className="card">

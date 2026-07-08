@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { prisma } from "./db/client";
 import * as bookingService from "./scheduling/bookingService";
 
@@ -72,4 +73,39 @@ export async function bookWalkIn(params: {
   patientName: string;
 }) {
   return bookingService.bookSlot({ ...params, bookedByStaff: true });
+}
+
+/** Looks a patient up by phone or email — the "is this person already registered" check. */
+export async function searchPatients(clinicId: string, query: string) {
+  const q = query.trim();
+  if (!q) return [];
+
+  return prisma.patient.findMany({
+    where: {
+      clinicId,
+      OR: [
+        { phone: { contains: q, mode: "insensitive" } },
+        { email: { contains: q, mode: "insensitive" } },
+        { name: { contains: q, mode: "insensitive" } },
+      ],
+    },
+    include: { _count: { select: { appointments: true } } },
+    orderBy: { createdAt: "desc" },
+    take: 10,
+  });
+}
+
+export const createPatientSchema = z.object({
+  name: z.string().min(1),
+  phone: z.string().min(1),
+  email: z.string().email().optional().or(z.literal("")),
+});
+
+/** Registers a walk-in's contact info directly, independent of booking a slot. */
+export async function createPatient(clinicId: string, input: z.infer<typeof createPatientSchema>) {
+  return prisma.patient.upsert({
+    where: { clinicId_phone: { clinicId, phone: input.phone } },
+    update: { name: input.name, email: input.email || undefined },
+    create: { clinicId, name: input.name, phone: input.phone, email: input.email || undefined },
+  });
 }

@@ -193,6 +193,7 @@ model Patient {
   clinic    Clinic   @relation(fields: [clinicId], references: [id])
   phone     String   // E.164, e.g. +9665XXXXXXXX
   name      String?
+  email     String?  // optional — set when a receptionist registers a walk-in with an email
   locale    Locale   @default(AR)
   createdAt DateTime @default(now())
 
@@ -201,6 +202,7 @@ model Patient {
   consultations Consultation[]
 
   @@unique([clinicId, phone])
+  @@index([clinicId, email])
 }
 
 model Appointment {

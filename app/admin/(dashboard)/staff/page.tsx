@@ -1,12 +1,18 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { listDoctors, listStaff } from "@/src/adminHandlers";
-import { inviteStaffAction } from "@/lib/actions/staff";
+import { inviteStaffAction, removeStaffAction } from "@/lib/actions/staff";
 import { getSession } from "@/lib/session";
 
-export default async function StaffPage() {
+export default async function StaffPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
   const session = await getSession();
   if (!session) redirect("/login");
 
+  const params = await searchParams;
   const [staff, doctors] = await Promise.all([listStaff(session.clinicId), listDoctors(session.clinicId)]);
   const unlinkedDoctors = doctors.filter((d) => !d.user);
 
@@ -48,6 +54,7 @@ export default async function StaffPage() {
 
       <div className="card">
         <h2>All staff</h2>
+        {params.error && <p className="error" style={{ marginBottom: 12 }}>{params.error}</p>}
         {staff.length === 0 ? (
           <p className="empty-state">No staff invited yet.</p>
         ) : (
@@ -57,6 +64,7 @@ export default async function StaffPage() {
                 <th>Email</th>
                 <th>Role</th>
                 <th>Linked doctor</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -65,6 +73,25 @@ export default async function StaffPage() {
                   <td>{u.email}</td>
                   <td>{u.role}</td>
                   <td>{u.doctor?.name ?? "—"}</td>
+                  <td>
+                    {u.role === "CLINIC_ADMIN" ? (
+                      <span className="muted">—</span>
+                    ) : (
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <Link href={`/admin/staff/${u.id}/edit`}>
+                          <button type="button" className="secondary">
+                            Edit
+                          </button>
+                        </Link>
+                        <form action={removeStaffAction}>
+                          <input type="hidden" name="userId" value={u.id} />
+                          <button type="submit" className="danger">
+                            Remove
+                          </button>
+                        </form>
+                      </div>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

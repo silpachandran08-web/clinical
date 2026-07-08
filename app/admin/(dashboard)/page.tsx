@@ -25,10 +25,19 @@ export default async function AdminHomePage() {
 
   return (
     <div>
-      <h1>{clinic.name}</h1>
-      <p className="muted">WhatsApp number: {clinic.whatsappNumber ?? "not set yet — configure it on the Clinic tab"}</p>
+      <div className="page-header">
+        <div>
+          <h1>{clinic.name}</h1>
+          <p className="muted">
+            WhatsApp number: {clinic.whatsappNumber ?? "not set yet — configure it on the Clinic tab"}
+          </p>
+        </div>
+        <span className="date">
+          {now.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+        </span>
+      </div>
 
-      <div className="card" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+      <div className="stat-grid">
         <Stat label="Departments" value={departments.length} href="/admin/departments" />
         <Stat label="Doctors" value={doctors.length} href="/admin/doctors" />
         <Stat label="Patients" value={patients.length} href="/admin/patients" />
@@ -40,9 +49,9 @@ export default async function AdminHomePage() {
 
 function Stat({ label, value, href }: { label: string; value: number; href: string }) {
   return (
-    <a href={href} style={{ textDecoration: "none", color: "inherit" }}>
-      <div style={{ fontSize: 28, fontWeight: 600 }}>{value}</div>
-      <div className="muted">{label}</div>
+    <a href={href} className="stat-card">
+      <div className="stat-value">{value}</div>
+      <div className="stat-label">{label}</div>
     </a>
   );
 }
