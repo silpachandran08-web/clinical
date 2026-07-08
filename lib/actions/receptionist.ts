@@ -27,8 +27,11 @@ export async function bookWalkInAction(formData: FormData) {
   const patientPhone = String(formData.get("patientPhone") ?? "").trim();
   const patientName = String(formData.get("patientName") ?? "").trim();
 
+  const doctorId = String(formData.get("doctorId") ?? "");
+  const carryPatient = `patientName=${encodeURIComponent(patientName)}&patientPhone=${encodeURIComponent(patientPhone)}`;
+
   if (!slotId || !patientPhone || !patientName) {
-    redirect(`/receptionist?doctorId=${formData.get("doctorId")}&error=missing`);
+    redirect(`/receptionist?doctorId=${doctorId}&error=missing&${carryPatient}#assign-doctor`);
   }
 
   await bookWalkIn({ clinicId: session.clinicId, slotId, patientPhone, patientName });
@@ -46,7 +49,11 @@ export async function addPatientAction(formData: FormData) {
     email: String(formData.get("email") ?? ""),
   });
 
-  await createPatient(session.clinicId, payload);
+  const patient = await createPatient(session.clinicId, payload);
   revalidatePath("/receptionist");
-  redirect(`/receptionist?patientQuery=${encodeURIComponent(payload.phone)}&added=1`);
+  redirect(
+    `/receptionist?patientName=${encodeURIComponent(patient.name ?? "")}&patientPhone=${encodeURIComponent(
+      patient.phone,
+    )}&added=1#assign-doctor`,
+  );
 }

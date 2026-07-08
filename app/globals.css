@@ -225,6 +225,14 @@ input::placeholder {
   color: #57607a;
 }
 
+input:disabled,
+select:disabled {
+  background: transparent;
+  border-color: var(--border-soft);
+  color: var(--text-muted);
+  cursor: default;
+}
+
 button {
   background: var(--accent);
   color: white;

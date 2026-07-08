@@ -26,6 +26,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <Link href="/admin/staff">Staff</Link>
         <Link href="/admin/patients">Patients</Link>
         <Link href="/admin/appointments">Appointments</Link>
+        <Link href="/admin/finance">Finance</Link>
         <div className="nav-spacer" />
         <form action={logout} style={{ display: "flex", alignItems: "center" }}>
           <button type="submit" className="secondary">

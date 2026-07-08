@@ -73,6 +73,15 @@ enum IntegrationMode {
   SHEETS
 }
 
+// Manual bookkeeping until real payment integration exists — a clinic logs
+// what came in and what went out by hand, same as they'd track it on paper
+// today. Once billing is wired up, completed/paid appointments could create
+// INCOME transactions automatically instead.
+enum TransactionType {
+  INCOME
+  EXPENSE
+}
+
 model Clinic {
   id                 String             @id @default(cuid())
   name               String
@@ -92,6 +101,21 @@ model Clinic {
   patients      Patient[]
   appointments  Appointment[]
   conversations Conversation[]
+  transactions  Transaction[]
+}
+
+model Transaction {
+  id          String           @id @default(cuid())
+  clinicId    String
+  clinic      Clinic           @relation(fields: [clinicId], references: [id])
+  type        TransactionType
+  amount      Decimal          @db.Decimal(10, 2)
+  category    String?
+  description String?
+  occurredAt  DateTime
+  createdAt   DateTime         @default(now())
+
+  @@index([clinicId, occurredAt])
 }
 
 // A person who can log in — scoped to exactly one clinic and one role.

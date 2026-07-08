@@ -12,7 +12,15 @@ import { addPatientAction, bookWalkInAction, checkInAction } from "@/lib/actions
 export default async function ReceptionistPage({
   searchParams,
 }: {
-  searchParams: Promise<{ doctorId?: string; error?: string; booked?: string; patientQuery?: string; added?: string }>;
+  searchParams: Promise<{
+    doctorId?: string;
+    error?: string;
+    booked?: string;
+    patientQuery?: string;
+    added?: string;
+    patientName?: string;
+    patientPhone?: string;
+  }>;
 }) {
   const session = await getSession();
   if (!session) redirect("/login");
@@ -33,6 +41,10 @@ export default async function ReceptionistPage({
 
   const patientQuery = params.patientQuery ?? "";
   const patientResults = patientQuery ? await searchPatients(session.clinicId, patientQuery) : [];
+
+  const selectedPatientName = params.patientName ?? "";
+  const selectedPatientPhone = params.patientPhone ?? "";
+  const hasSelectedPatient = Boolean(selectedPatientPhone);
 
   const waitingCount = doctorStatus.reduce((sum, d) => sum + d.waiting.length, 0);
   const inProgressCount = doctorStatus.filter((d) => d.inProgressWith).length;
@@ -101,7 +113,7 @@ export default async function ReceptionistPage({
       </div>
 
       <div className="card">
-        <h2>Find or add a patient</h2>
+        <h2>Step 1 · Find or add a patient</h2>
         <form method="get" className="stack" style={{ marginBottom: 4 }}>
           <label>
             Search by name, phone, or email
@@ -111,8 +123,6 @@ export default async function ReceptionistPage({
             Search
           </button>
         </form>
-
-        {params.added === "1" && <p style={{ color: "var(--success)", marginTop: 12 }}>Patient saved.</p>}
 
         {patientQuery && (
           <div style={{ marginTop: 16 }}>
@@ -126,6 +136,7 @@ export default async function ReceptionistPage({
                     <th>Phone</th>
                     <th>Email</th>
                     <th>Visits</th>
+                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -135,6 +146,15 @@ export default async function ReceptionistPage({
                       <td>{p.phone}</td>
                       <td>{p.email ?? "—"}</td>
                       <td>{p._count.appointments}</td>
+                      <td>
+                        <a
+                          href={`/receptionist?patientName=${encodeURIComponent(
+                            p.name ?? "",
+                          )}&patientPhone=${encodeURIComponent(p.phone)}#assign-doctor`}
+                        >
+                          Assign a doctor →
+                        </a>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -162,16 +182,38 @@ export default async function ReceptionistPage({
             <input name="email" type="email" placeholder="jane@example.com" />
           </label>
           <button type="submit" className="secondary" style={{ alignSelf: "flex-start" }}>
-            Save patient
+            Save &amp; assign a doctor →
           </button>
         </form>
       </div>
 
-      <div className="card">
-        <h2>Book a walk-in</h2>
-        <form method="get" style={{ marginBottom: 16 }}>
+      <div className="card" id="assign-doctor">
+        <h2>Step 2 · Assign a doctor</h2>
+
+        {hasSelectedPatient ? (
+          <p className="muted">
+            Booking for <strong style={{ color: "var(--text)" }}>{selectedPatientName || selectedPatientPhone}</strong>{" "}
+            ({selectedPatientPhone}) ·{" "}
+            <a href="/receptionist#assign-doctor">choose a different patient</a>
+          </p>
+        ) : (
+          <p className="muted">
+            No patient selected — find or add one above, or fill in their details manually below once
+            you pick a doctor and time.
+          </p>
+        )}
+
+        {params.added === "1" && <p style={{ color: "var(--success)" }}>Patient saved.</p>}
+
+        <form method="get" style={{ marginBottom: 16, marginTop: 12 }}>
+          {hasSelectedPatient && (
+            <>
+              <input type="hidden" name="patientName" value={selectedPatientName} />
+              <input type="hidden" name="patientPhone" value={selectedPatientPhone} />
+            </>
+          )}
           <label>
-            Doctor
+            Doctor (only shows doctors with availability today)
             <select name="doctorId" defaultValue={selectedDoctorId}>
               <option value="">Choose a doctor</option>
               {activeDoctors.map((d) => (
@@ -187,7 +229,7 @@ export default async function ReceptionistPage({
         </form>
 
         {params.error === "missing" && <p className="error">Fill in patient name, phone, and pick a slot.</p>}
-        {params.booked === "1" && <p style={{ color: "var(--success)" }}>Walk-in booked.</p>}
+        {params.booked === "1" && <p style={{ color: "var(--success)" }}>Appointment booked — the doctor will see them once checked in.</p>}
 
         {selectedDoctorId && (
           <form action={bookWalkInAction} className="stack">
@@ -205,16 +247,25 @@ export default async function ReceptionistPage({
                 ))}
               </select>
             </label>
-            <label>
-              Patient name
-              <input name="patientName" required />
-            </label>
-            <label>
-              Patient phone
-              <input name="patientPhone" placeholder="+9665XXXXXXXX" required />
-            </label>
+            {hasSelectedPatient ? (
+              <>
+                <input type="hidden" name="patientName" value={selectedPatientName} />
+                <input type="hidden" name="patientPhone" value={selectedPatientPhone} />
+              </>
+            ) : (
+              <>
+                <label>
+                  Patient name
+                  <input name="patientName" required />
+                </label>
+                <label>
+                  Patient phone
+                  <input name="patientPhone" placeholder="+9665XXXXXXXX" required />
+                </label>
+              </>
+            )}
             <button type="submit" disabled={availability.length === 0}>
-              Book walk-in
+              Confirm appointment
             </button>
           </form>
         )}
