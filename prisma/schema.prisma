@@ -286,6 +286,8 @@ model Consultation {
   patient       Patient     @relation(fields: [patientId], references: [id])
   notes         String?
   prescription  String?
+  weightKg      Float? // vital recorded at this visit, tracked over time on the patient's history page
+  administeredTreatment String? // meds/injections given on the spot by nurse or doctor — distinct from `prescription` (take-home)
   // When the doctor recommends "come back in N days" — we store the resulting
   // date (not the raw N) since that's what a reminder job would query
   // against. followUpReminderSentAt mirrors Appointment.reminderSentAt's

@@ -150,8 +150,8 @@ export default async function ReceptionistPage({
         </div>
       </div>
 
-      <div className="receptionist-layout">
-        <div className="receptionist-main">
+      <div className="dashboard-layout">
+        <div className="dashboard-main">
           <div className="card">
             <h2 className="card-title-icon">
               <SearchIcon /> Step 1 · Find or add a patient
@@ -348,7 +348,7 @@ export default async function ReceptionistPage({
           </div>
         </div>
 
-        <aside className="receptionist-sidebar">
+        <aside className="dashboard-sidebar">
           <div className="card" id="doctor-availability" style={{ overflow: "visible" }}>
             <div className="week-nav" style={{ marginTop: 0, marginBottom: 14 }}>
               <a

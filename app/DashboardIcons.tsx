@@ -76,3 +76,22 @@ export function CheckCircleIcon({ size = 18 }: IconProps) {
     </svg>
   );
 }
+
+export function ScaleIcon({ size = 18 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...base}>
+      <path d="M12 3v18M7 21h10" />
+      <path d="M5 7h6M13 7h6" />
+      <path d="M5 7l-2.5 5a2.5 2.5 0 0 0 5 0L5 7zM19 7l-2.5 5a2.5 2.5 0 0 0 5 0L19 7z" />
+    </svg>
+  );
+}
+
+export function SyringeIcon({ size = 18 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...base}>
+      <path d="M21 3l-3 3M17.5 5.5l-11 11-3 5 5-3 11-11z" />
+      <path d="M14 6l4 4M11.5 8.5l1.7 1.7M9 11l1.7 1.7" />
+    </svg>
+  );
+}

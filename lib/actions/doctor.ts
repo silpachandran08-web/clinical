@@ -41,6 +41,8 @@ export async function completeConsultationAction(formData: FormData) {
   const payload = completeConsultationSchema.parse({
     notes: String(formData.get("notes") ?? "") || undefined,
     prescription: String(formData.get("prescription") ?? "") || undefined,
+    weightKg: String(formData.get("weightKg") ?? "") || undefined,
+    administeredTreatment: String(formData.get("administeredTreatment") ?? "") || undefined,
     followUpDays: String(formData.get("followUpDays") ?? "") || undefined,
   });
 

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { Gender } from "@prisma/client";
 import { prisma } from "./db/client";
-import { startOfDayInTimezone } from "./scheduling/timezone";
+import { getDatePartsInTimezone, startOfDayInTimezone, zonedTimeToUtc } from "./scheduling/timezone";
 
 /**
  * All functions here take both clinicId AND doctorId and check both on every
@@ -74,6 +74,8 @@ export async function startNextConsultation(clinicId: string, doctorId: string) 
 export const completeConsultationSchema = z.object({
   notes: z.string().optional(),
   prescription: z.string().optional(),
+  weightKg: z.coerce.number().positive().optional(),
+  administeredTreatment: z.string().optional(),
   followUpDays: z.coerce.number().int().positive().optional(),
 });
 
@@ -88,11 +90,12 @@ export async function completeConsultation(
   });
   if (!appointment) throw new Error("Appointment not found, not yours, or not in progress");
 
-  let followUpDate: Date | undefined;
-  if (input.followUpDays) {
-    followUpDate = new Date();
-    followUpDate.setDate(followUpDate.getDate() + input.followUpDays);
-  }
+  // Plain millisecond arithmetic on "now" rather than Date.setDate() — the
+  // latter advances a calendar day in the server's own local timezone,
+  // the exact bug already fixed everywhere else this session.
+  const followUpDate = input.followUpDays
+    ? new Date(Date.now() + input.followUpDays * 24 * 60 * 60 * 1000)
+    : undefined;
 
   await prisma.$transaction([
     prisma.consultation.create({
@@ -102,6 +105,8 @@ export async function completeConsultation(
         patientId: appointment.patientId,
         notes: input.notes,
         prescription: input.prescription,
+        weightKg: input.weightKg,
+        administeredTreatment: input.administeredTreatment,
         followUpDate,
       },
     }),
@@ -152,4 +157,57 @@ export async function listPatientHistory(clinicId: string, patientId: string) {
     include: { doctor: true },
     orderBy: { createdAt: "desc" },
   });
+}
+
+/** First of the month (from a "YYYY-MM" URL param, or the current month) in the clinic's own timezone. */
+export function getMonthStart(param: string | undefined, timeZone: string): Date {
+  const match = param ? /^(\d{4})-(\d{2})$/.exec(param) : null;
+  if (match) {
+    return zonedTimeToUtc(Number(match[1]), Number(match[2]), 1, 0, 0, timeZone);
+  }
+  const { year, month } = getDatePartsInTimezone(new Date(), timeZone);
+  return zonedTimeToUtc(year, month, 1, 0, 0, timeZone);
+}
+
+export function formatMonthParam(monthStart: Date, timeZone: string): string {
+  const { year, month } = getDatePartsInTimezone(monthStart, timeZone);
+  return `${year}-${String(month).padStart(2, "0")}`;
+}
+
+/** "YYYY-MM" of the month `delta` months away from `monthStart` (e.g. -1 for previous, +1 for next) — for calendar Prev/Next links. */
+export function shiftMonthParam(monthStart: Date, delta: number, timeZone: string): string {
+  const { year, month } = getDatePartsInTimezone(monthStart, timeZone);
+  const totalMonths = year * 12 + (month - 1) + delta;
+  const newYear = Math.floor(totalMonths / 12);
+  const newMonth = (totalMonths % 12) + 1;
+  return `${newYear}-${String(newMonth).padStart(2, "0")}`;
+}
+
+/** This doctor's appointment count per calendar day (clinic-local) across one month — powers the calendar's dot indicators. */
+export async function listAppointmentDayCounts(
+  clinicId: string,
+  doctorId: string,
+  monthStart: Date,
+  timeZone: string,
+): Promise<Record<string, number>> {
+  const { year, month } = getDatePartsInTimezone(monthStart, timeZone);
+  const nextMonthStart = zonedTimeToUtc(month === 12 ? year + 1 : year, month === 12 ? 1 : month + 1, 1, 0, 0, timeZone);
+
+  const appointments = await prisma.appointment.findMany({
+    where: {
+      clinicId,
+      doctorId,
+      status: { notIn: ["CANCELLED"] },
+      slot: { startsAt: { gte: monthStart, lt: nextMonthStart } },
+    },
+    select: { slot: { select: { startsAt: true } } },
+  });
+
+  const counts: Record<string, number> = {};
+  for (const a of appointments) {
+    const { year: y, month: m, day: d } = getDatePartsInTimezone(a.slot.startsAt, timeZone);
+    const key = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    counts[key] = (counts[key] ?? 0) + 1;
+  }
+  return counts;
 }
