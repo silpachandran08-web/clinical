@@ -152,11 +152,11 @@ export default async function ReceptionistPage({
 
       <div className="dashboard-layout">
         <div className="dashboard-main">
-          <div className="card">
+          <div className="card" id="find-patient">
             <h2 className="card-title-icon">
               <SearchIcon /> Step 1 · Find or add a patient
             </h2>
-            <form method="get" className="stack" style={{ marginBottom: 4 }}>
+            <form method="get" action="/receptionist#find-patient" className="stack" style={{ marginBottom: 4 }}>
               <label>
                 Search by name, phone, or email
                 <input name="patientQuery" defaultValue={patientQuery} placeholder="e.g. +9665... or jane@example.com" />
@@ -190,6 +190,7 @@ export default async function ReceptionistPage({
                           <td>{p._count.appointments}</td>
                           <td>
                             <a
+                              className="btn-link"
                               href={`/receptionist?patientName=${encodeURIComponent(
                                 p.name ?? "",
                               )}&patientPhone=${encodeURIComponent(p.phone)}#assign-doctor`}
@@ -252,7 +253,7 @@ export default async function ReceptionistPage({
 
             {hasSelectedPatient && (
               <>
-                <form method="get" style={{ marginBottom: 16, marginTop: 12 }}>
+                <form method="get" action="/receptionist#assign-doctor" style={{ marginBottom: 16, marginTop: 12 }}>
                   <input type="hidden" name="patientName" value={selectedPatientName} />
                   <input type="hidden" name="patientPhone" value={selectedPatientPhone} />
                   <label>
@@ -442,38 +443,44 @@ export default async function ReceptionistPage({
               <div className="schedule-list">
                 {appointments.map((a) => (
                   <div className="schedule-row" key={a.id}>
-                    <div className="schedule-time">
-                      {a.slot.startsAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", timeZone })}
-                    </div>
-                    <div className="schedule-info">
-                      <div className="schedule-patient">
-                        <PatientIcon size={14} />
-                        <span>{a.patient.name ?? a.patient.phone}</span>
-                        {a.bookedByStaff && <span className="badge">walk-in</span>}
+                    <div className="schedule-row-header">
+                      <div className="schedule-time-patient">
+                        <span className="schedule-time">
+                          {a.slot.startsAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", timeZone })}
+                        </span>
+                        <span className="schedule-patient">
+                          <PatientIcon size={14} />
+                          <span>{a.patient.name ?? a.patient.phone}</span>
+                          {a.bookedByStaff ? (
+                            <span className="badge">walk-in</span>
+                          ) : (
+                            <span className="badge info">online</span>
+                          )}
+                        </span>
                       </div>
-                      <div className="muted" style={{ fontSize: 11.5 }}>{a.doctor.name}</div>
+                      <div className="schedule-status">
+                        <span
+                          className={`badge ${
+                            a.status === "CANCELLED" || a.status === "NO_SHOW"
+                              ? "danger"
+                              : a.status === "COMPLETED"
+                                ? "success"
+                                : ""
+                          }`}
+                        >
+                          {a.status}
+                        </span>
+                        {a.status === "CONFIRMED" && (
+                          <form action={checkInAction}>
+                            <input type="hidden" name="appointmentId" value={a.id} />
+                            <button type="submit" className="secondary">
+                              Check in
+                            </button>
+                          </form>
+                        )}
+                      </div>
                     </div>
-                    <div className="schedule-status">
-                      <span
-                        className={`badge ${
-                          a.status === "CANCELLED" || a.status === "NO_SHOW"
-                            ? "danger"
-                            : a.status === "COMPLETED"
-                              ? "success"
-                              : ""
-                        }`}
-                      >
-                        {a.status}
-                      </span>
-                      {a.status === "CONFIRMED" && (
-                        <form action={checkInAction}>
-                          <input type="hidden" name="appointmentId" value={a.id} />
-                          <button type="submit" className="secondary">
-                            Check in
-                          </button>
-                        </form>
-                      )}
-                    </div>
+                    <div className="muted schedule-doctor" style={{ fontSize: 11.5 }}>{a.doctor.name}</div>
                   </div>
                 ))}
               </div>
