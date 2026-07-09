@@ -25,7 +25,12 @@ export async function proxy(request: NextRequest) {
   const session = secret ? await verifySessionToken(token, secret) : null;
 
   if (pathname === "/") {
-    return NextResponse.redirect(new URL(session ? ROLE_HOME[session.role] : "/login", request.url));
+    // Logged-in visitors get bounced straight to their dashboard; everyone
+    // else sees the public marketing landing page.
+    if (session) {
+      return NextResponse.redirect(new URL(ROLE_HOME[session.role], request.url));
+    }
+    return NextResponse.next();
   }
 
   if (!session) {
