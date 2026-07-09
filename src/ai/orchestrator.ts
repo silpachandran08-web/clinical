@@ -31,6 +31,34 @@ export async function handleInboundMessage(params: {
     data: { conversationId: conversation.id, direction: "INBOUND", body: params.body },
   });
 
+  // Brand new conversation: ask which language to continue in before anything
+  // else, rather than silently guessing from the first message.
+  if (!existingId) {
+    const question =
+      "Hi! Would you like to continue in English or Arabic?\nمرحبًا! هل تفضل المتابعة بالإنجليزية أم العربية؟";
+    await prisma.message.create({
+      data: { conversationId: conversation.id, direction: "OUTBOUND", body: question },
+    });
+    return question;
+  }
+
+  const state = (conversation.state as { locale?: "AR" | "EN" } | null) ?? {};
+
+  // Existing conversation that hasn't picked a language yet: this message IS
+  // the patient's answer to that question, not a real booking request yet.
+  if (!state.locale) {
+    const locale = detectLocaleFromReply(params.body);
+    await prisma.conversation.update({ where: { id: conversation.id }, data: { state: { locale } } });
+    const confirmation =
+      locale === "AR"
+        ? "تمام، سأتابع معك بالعربية. كيف يمكنني مساعدتك اليوم؟"
+        : "Great, I'll continue in English. How can I help you today?";
+    await prisma.message.create({
+      data: { conversationId: conversation.id, direction: "OUTBOUND", body: confirmation },
+    });
+    return confirmation;
+  }
+
   const priorMessages = await prisma.message.findMany({
     where: { conversationId: conversation.id },
     orderBy: { createdAt: "asc" },
@@ -42,7 +70,7 @@ export async function handleInboundMessage(params: {
     content: m.body,
   }));
 
-  const system = buildSystemPrompt(params.clinic);
+  const system = buildSystemPrompt(params.clinic, state.locale);
   let finalText = "";
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
@@ -94,7 +122,7 @@ export async function handleInboundMessage(params: {
 
   if (!finalText) {
     finalText =
-      params.clinic.defaultLocale === "AR"
+      state.locale === "AR"
         ? "عذرًا، سأحتاج لتحويلك إلى أحد موظفي العيادة للمتابعة."
         : "Sorry, let me connect you with clinic staff to help further.";
   }
@@ -112,4 +140,11 @@ async function findConversationId(clinicId: string, patientPhone: string): Promi
     orderBy: { lastMessageAt: "desc" },
   });
   return existing?.id ?? null;
+}
+
+/** Arabic script anywhere in the reply, or the word "Arabic" spelled in Latin script, both mean AR; everything else defaults to EN. */
+export function detectLocaleFromReply(text: string): "AR" | "EN" {
+  if (/[؀-ۿ]/.test(text)) return "AR";
+  if (text.toLowerCase().includes("arab")) return "AR";
+  return "EN";
 }

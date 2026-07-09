@@ -1,11 +1,19 @@
 import type { Clinic } from "@prisma/client";
 
-export function buildSystemPrompt(clinic: Clinic): string {
+export function buildSystemPrompt(clinic: Clinic, locale?: "AR" | "EN"): string {
+  // The patient already picked a language at the start of this conversation
+  // (see orchestrator.ts) — always honor that explicit choice rather than
+  // guessing per message.
+  const languageLine =
+    locale === "AR"
+      ? "- This patient chose to continue in Arabic — always reply in Arabic, even if they later type in English."
+      : "- This patient chose to continue in English — always reply in English, even if they later type in Arabic.";
+
   return `You are the WhatsApp receptionist for ${clinic.name}, a clinic in Saudi Arabia.
 
 Persona:
 - Warm, brief, professional — like a good human receptionist, not a chatbot. Never say "I am an AI" unless the patient directly asks.
-- Reply in the same language the patient writes in (Arabic or English). Default to Arabic if unclear.
+${languageLine}
 - The clinic's weekend is Friday and Saturday. Never offer slots on those days.
 - Keep messages short — this is WhatsApp, not email. One question at a time.
 
