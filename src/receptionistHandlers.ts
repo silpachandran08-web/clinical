@@ -4,6 +4,11 @@ import * as bookingService from "./scheduling/bookingService";
 import { getDatePartsInTimezone, startOfDayInTimezone, zonedTimeToUtc } from "./scheduling/timezone";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+// A little over 3 missed AutoRefresh polls (~5s each) before a doctor's
+// heartbeat is considered stale — long enough to absorb a slow request or
+// two, short enough that a closed browser tab shows up as unavailable
+// within a few seconds of the front desk glancing at the screen.
+const AVAILABILITY_STALE_MS = 20_000;
 
 /** "Today"/"tomorrow" as observed in the clinic's own timezone, not the server's (see src/scheduling/timezone.ts). */
 function startOfToday(timeZone: string): Date {
@@ -75,13 +80,21 @@ export async function listDoctorsStatusForDay(clinicId: string, date: Date) {
   const now = new Date();
   return doctors.map((d) => {
     const openSlots = d.slots.filter((s) => s.status === "OPEN" && s.startsAt > now);
+    // The day's last slot has already ended — true for any past day, and
+    // for today once working hours are over. Distinguishes "closed for the
+    // day" from "genuinely fully booked within hours still to come".
+    const lastSlot = d.slots[d.slots.length - 1];
+    const dayEnded = d.slots.length > 0 && now >= lastSlot.endsAt;
+    const isLive = d.isAvailable && d.lastSeenAt !== null && now.getTime() - d.lastSeenAt.getTime() < AVAILABILITY_STALE_MS;
     return {
       id: d.id,
       name: d.name,
+      isLive,
       inProgressWith: d.appointments.find((a) => a.status === "IN_PROGRESS") ?? null,
       waiting: d.appointments.filter((a) => a.status === "CHECKED_IN"),
       openSlots,
       totalSlots: d.slots.length,
+      dayEnded,
     };
   });
 }

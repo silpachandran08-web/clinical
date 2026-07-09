@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import {
   completeConsultation,
   completeConsultationSchema,
+  setDoctorAvailability,
   startConsultation,
   startNextConsultation,
   updatePatientDetails,
@@ -63,4 +64,12 @@ export async function updatePatientDetailsAction(formData: FormData) {
 
   await updatePatientDetails(session.clinicId, session.doctorId, patientId, payload);
   revalidatePath(`/doctor/patients/${patientId}`);
+}
+
+export async function setDoctorAvailabilityAction(formData: FormData) {
+  const session = await requireDoctorSession();
+  const available = String(formData.get("available")) === "true";
+  await setDoctorAvailability(session.clinicId, session.doctorId, available);
+  revalidatePath("/doctor");
+  revalidatePath("/receptionist");
 }

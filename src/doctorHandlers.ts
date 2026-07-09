@@ -73,6 +73,26 @@ export async function startNextConsultation(clinicId: string, doctorId: string) 
   await startConsultation(clinicId, doctorId, next.id);
 }
 
+/** Explicit "available for patients" / "on a break" toggle — set true on login, false on logout, or flipped manually from the dashboard. */
+export async function setDoctorAvailability(clinicId: string, doctorId: string, isAvailable: boolean) {
+  const result = await prisma.doctor.updateMany({ where: { id: doctorId, clinicId }, data: { isAvailable } });
+  if (result.count === 0) {
+    throw new Error("Doctor not found");
+  }
+}
+
+/**
+ * Heartbeat touched on every doctor-dashboard render (piggybacking the
+ * existing ~5s AutoRefresh poll already on that page) — lets the front desk
+ * tell a doctor who's genuinely still at her desk from one who closed the
+ * browser tab without logging out, without needing unload-event detection
+ * (which fires on ordinary in-app navigation too and would false-positive).
+ * Best-effort: swallows errors so a lagging heartbeat never breaks the page.
+ */
+export async function touchDoctorLastSeen(doctorId: string): Promise<void> {
+  await prisma.doctor.updateMany({ where: { id: doctorId }, data: { lastSeenAt: new Date() } }).catch(() => {});
+}
+
 export const completeConsultationSchema = z.object({
   notes: z.string().optional(),
   prescription: z.string().optional(),

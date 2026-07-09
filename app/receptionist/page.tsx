@@ -377,7 +377,13 @@ export default async function ReceptionistPage({
                   <div className="doctor-availability-row" key={d.id}>
                     <div className="doctor-availability-name">
                       <StethoscopeIcon size={15} />
-                      <span>{d.name}</span>
+                      <span className="doctor-name-text">{d.name}</span>
+                      {isToday && (
+                        <span
+                          className={`availability-dot ${d.isLive ? "available" : "unavailable"}`}
+                          title={d.isLive ? "Available" : "Unavailable"}
+                        />
+                      )}
                     </div>
                     {isToday && (
                       <div className="doctor-availability-live">
@@ -394,6 +400,8 @@ export default async function ReceptionistPage({
                     <div>
                       {d.totalSlots === 0 ? (
                         <span className="muted">Not working this day</span>
+                      ) : d.dayEnded ? (
+                        <span className="muted">Day closed</span>
                       ) : d.openSlots.length === 0 ? (
                         <span className="badge danger">Fully booked</span>
                       ) : (

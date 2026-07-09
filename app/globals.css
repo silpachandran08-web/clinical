@@ -649,11 +649,63 @@ tbody tr:last-child td {
   color: var(--accent);
   flex-shrink: 0;
 }
-.doctor-availability-name span {
+.doctor-availability-name .doctor-name-text {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
+}
+
+/* --- Live availability dot (front desk) / toggle (doctor dashboard) — green
+   when a doctor is marked available AND her heartbeat is fresh, red
+   otherwise (on a break, logged out, or the browser tab just went away). --- */
+.availability-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: inline-block;
+}
+.availability-dot.available {
+  background: var(--success);
+  box-shadow: 0 0 0 2px var(--success-soft);
+}
+.availability-dot.unavailable {
+  background: var(--danger);
+  box-shadow: 0 0 0 2px var(--danger-soft);
+}
+
+.availability-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 600;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.availability-toggle .availability-dot {
+  background: currentColor;
+  box-shadow: none;
+}
+.availability-toggle.available {
+  background: var(--success-soft);
+  color: #15803d;
+  border-color: #bbf0cc;
+}
+.availability-toggle.available:hover {
+  background: #d9f5e3;
+}
+.availability-toggle.unavailable {
+  background: var(--danger-soft);
+  color: #b91c1c;
+  border-color: #f7c9c7;
+}
+.availability-toggle.unavailable:hover {
+  background: #fbdada;
 }
 
 .doctor-availability-live {

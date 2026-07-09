@@ -4,8 +4,10 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { env } from "@/src/config/env";
 import { createSessionToken, SESSION_COOKIE_NAME, type UserRole } from "@/lib/auth";
+import { getSession } from "@/lib/session";
 import type { AuthFormState } from "@/lib/authFormState";
 import { findUserByEmail, registerClinicAndAdmin, requestOtp, verifyOtpCode } from "@/src/authService";
+import { setDoctorAvailability } from "@/src/doctorHandlers";
 
 const ROLE_HOME: Record<UserRole, string> = {
   CLINIC_ADMIN: "/admin",
@@ -47,6 +49,9 @@ export async function loginAction(_prev: AuthFormState, formData: FormData): Pro
   if (!user) return { step: "start", error: "No account with that email" };
 
   await setSession(user.id, user.clinicId, user.role, user.doctorId);
+  if (user.role === "DOCTOR" && user.doctorId) {
+    await setDoctorAvailability(user.clinicId, user.doctorId, true);
+  }
   redirect(ROLE_HOME[user.role]);
 }
 
@@ -85,6 +90,11 @@ export async function registerAction(_prev: AuthFormState, formData: FormData): 
 }
 
 export async function logout() {
+  const session = await getSession();
+  if (session?.role === "DOCTOR" && session.doctorId) {
+    await setDoctorAvailability(session.clinicId, session.doctorId, false);
+  }
+
   const cookieStore = await cookies();
   cookieStore.delete(SESSION_COOKIE_NAME);
   redirect("/login");

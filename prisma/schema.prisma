@@ -186,6 +186,14 @@ model Doctor {
   department   Department @relation(fields: [departmentId], references: [id])
   name         String
   active       Boolean    @default(true)
+  // Live "at her desk" status shown to front desk — isAvailable is the
+  // explicit on/off switch (set true at login, false at logout, or flipped
+  // manually for a break); lastSeenAt is a heartbeat touched on every doctor
+  // dashboard render (piggybacking the existing ~5s AutoRefresh poll) so a
+  // browser tab closed without a clean logout goes stale on its own instead
+  // of relying on unreliable unload-event detection.
+  isAvailable  Boolean    @default(false)
+  lastSeenAt   DateTime?
   createdAt    DateTime   @default(now())
 
   workingHours  WorkingHours[]
