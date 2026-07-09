@@ -60,11 +60,11 @@ export const toolDefinitions: Anthropic.Tool[] = [
   {
     name: "escalate_to_human",
     description:
-      "Hand off to clinic staff instead of continuing automatically. Use for emergencies, complaints, billing questions, or anything you're unsure how to handle safely.",
+      "Create a follow-up request on the clinic front desk's dashboard. Use for emergencies, complaints, billing questions, or anything you're unsure how to handle safely. Staff will see it and reply to the patient in this same WhatsApp chat (or call them) — so tell the patient staff will get back to them here soon; do NOT imply they are being transferred or connected live right now.",
     input_schema: {
       type: "object",
       properties: {
-        reason: { type: "string" },
+        reason: { type: "string", description: "Short summary for staff of what the patient needs, e.g. 'Wants an earlier GP slot than tomorrow'" },
         urgent: { type: "boolean", description: "true for medical emergencies" },
       },
       required: ["reason"],
@@ -147,6 +147,19 @@ export async function runTool(name: string, input: any, ctx: ToolContext): Promi
     }
 
     case "escalate_to_human": {
+      // The persisted row is what makes "staff will follow up" true: it shows
+      // up as an open item on the receptionist dashboard (which polls every
+      // few seconds) until someone marks it handled.
+      const { prisma } = await import("../db/client");
+      await prisma.staffEscalation.create({
+        data: {
+          clinicId: ctx.clinic.id,
+          patientPhone: ctx.patientPhone,
+          reason: String(input.reason ?? "Patient needs staff help"),
+          urgent: Boolean(input.urgent),
+        },
+      });
+
       if (env.staffEscalationWebhookUrl) {
         await fetch(env.staffEscalationWebhookUrl, {
           method: "POST",

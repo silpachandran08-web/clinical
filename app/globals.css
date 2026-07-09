@@ -656,6 +656,40 @@ tbody tr:last-child td {
   min-width: 0;
 }
 
+/* --- Patient follow-ups (front desk) — the queue of chats the WhatsApp AI
+   handed over to staff. One row per open escalation: who, why, when, plus
+   a WhatsApp deep-link to reply and a "Mark handled" action. --- */
+.escalation-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.escalation-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-soft);
+}
+.escalation-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.escalation-info {
+  flex: 1;
+  min-width: 220px;
+}
+
+.escalation-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 /* --- Live availability dot (front desk) / toggle (doctor dashboard) — green
    when a doctor is marked available AND her heartbeat is fresh, red
    otherwise (on a break, logged out, or the browser tab just went away). --- */

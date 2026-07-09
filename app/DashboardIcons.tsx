@@ -96,6 +96,15 @@ export function SyringeIcon({ size = 18 }: IconProps) {
   );
 }
 
+export function AlertIcon({ size = 18 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...base}>
+      <path d="M12 3.5 2.5 20h19L12 3.5z" />
+      <path d="M12 10v4.5M12 17.5v.2" />
+    </svg>
+  );
+}
+
 export function PrinterIcon({ size = 18 }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" {...base}>

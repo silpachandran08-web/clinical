@@ -7,6 +7,7 @@ import {
   checkInAppointment,
   createPatient,
   createPatientSchema,
+  resolveEscalation,
 } from "@/src/receptionistHandlers";
 import { getSession } from "@/lib/session";
 
@@ -16,6 +17,15 @@ export async function checkInAction(formData: FormData) {
 
   const appointmentId = String(formData.get("appointmentId"));
   await checkInAppointment(session.clinicId, appointmentId);
+  revalidatePath("/receptionist");
+}
+
+export async function resolveEscalationAction(formData: FormData) {
+  const session = await getSession();
+  if (!session) throw new Error("Not authenticated");
+
+  const escalationId = String(formData.get("escalationId"));
+  await resolveEscalation(session.clinicId, escalationId);
   revalidatePath("/receptionist");
 }
 

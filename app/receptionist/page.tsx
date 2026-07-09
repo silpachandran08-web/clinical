@@ -7,14 +7,16 @@ import {
   getDayParam,
   getWeekStart,
   listDoctorsStatusForDay,
+  listOpenEscalations,
   listTodayAppointments,
   listWeekSlots,
   searchPatients,
 } from "@/src/receptionistHandlers";
-import { addPatientAction, checkInAction } from "@/lib/actions/receptionist";
+import { addPatientAction, checkInAction, resolveEscalationAction } from "@/lib/actions/receptionist";
 import { WeekSlotPicker } from "./WeekSlotPicker";
 import { AutoRefresh } from "../AutoRefresh";
 import {
+  AlertIcon,
   CalendarIcon,
   CheckCircleIcon,
   ClockIcon,
@@ -81,11 +83,12 @@ export default async function ReceptionistPage({
   const nextDay = new Date(statusDay.getTime() + DAY_MS);
   const canGoBackDay = statusDay > today;
 
-  const [appointments, todayDoctorStatus, browsedDoctorStatus, allDoctors] = await Promise.all([
+  const [appointments, todayDoctorStatus, browsedDoctorStatus, allDoctors, escalations] = await Promise.all([
     listTodayAppointments(session.clinicId, timeZone),
     listDoctorsStatusForDay(session.clinicId, today),
     isToday ? Promise.resolve(null) : listDoctorsStatusForDay(session.clinicId, statusDay),
     listDoctors(session.clinicId),
+    listOpenEscalations(session.clinicId),
   ]);
   const doctorStatus = browsedDoctorStatus ?? todayDoctorStatus;
 
@@ -152,6 +155,60 @@ export default async function ReceptionistPage({
 
       <div className="dashboard-layout">
         <div className="dashboard-main">
+          {escalations.length > 0 && (
+            <div className="card" style={{ borderColor: "var(--warning)" }}>
+              <h2 className="card-title-icon">
+                <AlertIcon /> Patient follow-ups
+                <span className="badge warning">{escalations.length}</span>
+              </h2>
+              <p className="muted" style={{ margin: "0 0 12px", fontSize: 12.5 }}>
+                The WhatsApp assistant asked staff to take over these chats — reply to the patient, then mark it handled.
+              </p>
+              <div className="escalation-list">
+                {escalations.map((e) => (
+                  <div className="escalation-row" key={e.id}>
+                    <div className="escalation-info">
+                      <div className="schedule-patient">
+                        <PatientIcon size={14} />
+                        <span>{e.patientName ?? e.patientPhone}</span>
+                        {e.urgent && <span className="badge danger">URGENT</span>}
+                        <span className="muted" style={{ fontSize: 11.5, fontWeight: 500 }}>
+                          {e.createdAt.toLocaleString(undefined, {
+                            month: "short",
+                            day: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            timeZone,
+                          })}
+                        </span>
+                      </div>
+                      <div className="muted" style={{ fontSize: 12.5, paddingLeft: 20 }}>
+                        {e.reason}
+                        {e.patientName && <> · {e.patientPhone}</>}
+                      </div>
+                    </div>
+                    <div className="escalation-actions">
+                      <a
+                        className="btn-link"
+                        href={`https://wa.me/${e.patientPhone.replace("+", "")}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        Reply on WhatsApp
+                      </a>
+                      <form action={resolveEscalationAction}>
+                        <input type="hidden" name="escalationId" value={e.id} />
+                        <button type="submit" className="secondary">
+                          Mark handled
+                        </button>
+                      </form>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="card" id="find-patient">
             <h2 className="card-title-icon">
               <SearchIcon /> Step 1 · Find or add a patient

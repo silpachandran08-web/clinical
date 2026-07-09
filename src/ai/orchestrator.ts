@@ -59,16 +59,29 @@ export async function handleInboundMessage(params: {
     return confirmation;
   }
 
-  const priorMessages = await prisma.message.findMany({
-    where: { conversationId: conversation.id },
-    orderBy: { createdAt: "asc" },
-    take: HISTORY_MESSAGES,
-  });
+  // The most RECENT window, not the oldest: `asc` + take would return the
+  // first 20 messages ever, so once a conversation grew past the window the
+  // just-received patient message wasn't even included and the history ended
+  // on an assistant turn — which the API rejects outright (400 "must end
+  // with a user message"), silently killing replies on long conversations.
+  const priorMessages = (
+    await prisma.message.findMany({
+      where: { conversationId: conversation.id },
+      orderBy: { createdAt: "desc" },
+      take: HISTORY_MESSAGES,
+    })
+  ).reverse();
 
   const messages: Anthropic.MessageParam[] = priorMessages.map((m) => ({
     role: m.direction === "INBOUND" ? "user" : "assistant",
     content: m.body,
   }));
+
+  // The window can also start mid-conversation on an assistant turn; the API
+  // requires the first message to be from the user, so trim leading replies.
+  while (messages.length > 0 && messages[0].role === "assistant") {
+    messages.shift();
+  }
 
   const system = buildSystemPrompt(params.clinic, state.locale);
   let finalText = "";
@@ -121,10 +134,20 @@ export async function handleInboundMessage(params: {
   }
 
   if (!finalText) {
+    // This fallback promises staff follow-up, so make that promise real the
+    // same way the escalate_to_human tool does — otherwise nobody would ever
+    // see that this conversation dead-ended.
+    await prisma.staffEscalation.create({
+      data: {
+        clinicId: params.clinic.id,
+        patientPhone: params.patientPhone,
+        reason: "AI conversation could not complete — needs staff follow-up",
+      },
+    });
     finalText =
       state.locale === "AR"
-        ? "عذرًا، سأحتاج لتحويلك إلى أحد موظفي العيادة للمتابعة."
-        : "Sorry, let me connect you with clinic staff to help further.";
+        ? "عذرًا، سأحوّل طلبك إلى أحد موظفي العيادة وسيتواصلون معك هنا قريبًا."
+        : "Sorry, I've passed this to our clinic staff — they'll get back to you here shortly.";
   }
 
   await prisma.message.create({

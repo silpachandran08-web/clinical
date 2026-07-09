@@ -181,6 +181,45 @@ export async function searchPatients(clinicId: string, query: string) {
   });
 }
 
+/**
+ * Open AI-escalated follow-up requests, urgent ones pinned to the top and
+ * then oldest-first (a fair queue — whoever has waited longest gets helped
+ * next). Patient names are resolved in one batched lookup by phone since
+ * escalations store only the phone (the patient may not be registered yet).
+ */
+export async function listOpenEscalations(clinicId: string) {
+  const escalations = await prisma.staffEscalation.findMany({
+    where: { clinicId, status: "OPEN" },
+    orderBy: [{ urgent: "desc" }, { createdAt: "asc" }],
+  });
+  if (escalations.length === 0) return [];
+
+  const patients = await prisma.patient.findMany({
+    where: { clinicId, phone: { in: escalations.map((e) => e.patientPhone) } },
+    select: { phone: true, name: true },
+  });
+  const nameByPhone = new Map(patients.map((p) => [p.phone, p.name]));
+
+  return escalations.map((e) => ({
+    id: e.id,
+    patientPhone: e.patientPhone,
+    patientName: nameByPhone.get(e.patientPhone) ?? null,
+    reason: e.reason,
+    urgent: e.urgent,
+    createdAt: e.createdAt,
+  }));
+}
+
+export async function resolveEscalation(clinicId: string, escalationId: string) {
+  const result = await prisma.staffEscalation.updateMany({
+    where: { id: escalationId, clinicId, status: "OPEN" },
+    data: { status: "RESOLVED", resolvedAt: new Date() },
+  });
+  if (result.count === 0) {
+    throw new Error("Escalation not found or already handled");
+  }
+}
+
 export const createPatientSchema = z.object({
   name: z.string().min(1),
   phone: z.string().min(1),

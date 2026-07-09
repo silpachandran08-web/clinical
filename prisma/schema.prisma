@@ -119,6 +119,7 @@ model Clinic {
   appointments  Appointment[]
   conversations Conversation[]
   transactions  Transaction[]
+  escalations   StaffEscalation[]
 }
 
 model Transaction {
@@ -337,4 +338,27 @@ model Message {
   createdAt      DateTime         @default(now())
 
   @@index([conversationId, createdAt])
+}
+
+enum EscalationStatus {
+  OPEN
+  RESOLVED
+}
+
+// A follow-up request the WhatsApp AI hands to the front desk (emergencies,
+// complaints, billing questions, anything it can't book safely). Persisted so
+// the AI's "staff will follow up" promise is actually backed by something a
+// human sees — the receptionist dashboard shows OPEN rows as a queue.
+model StaffEscalation {
+  id           String           @id @default(cuid())
+  clinicId     String
+  clinic       Clinic           @relation(fields: [clinicId], references: [id])
+  patientPhone String           // E.164; patient name resolved at display time via Patient lookup
+  reason       String
+  urgent       Boolean          @default(false) // true = medical emergency flagged by the AI
+  status       EscalationStatus @default(OPEN)
+  createdAt    DateTime         @default(now())
+  resolvedAt   DateTime?
+
+  @@index([clinicId, status])
 }
