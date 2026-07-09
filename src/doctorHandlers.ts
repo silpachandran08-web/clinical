@@ -53,6 +53,23 @@ export async function startConsultation(clinicId: string, doctorId: string, appo
   }
 }
 
+/** Starts the longest-waiting checked-in patient, so the doctor doesn't have to scan the list and pick one. */
+export async function startNextConsultation(clinicId: string, doctorId: string) {
+  const next = await prisma.appointment.findFirst({
+    where: {
+      clinicId,
+      doctorId,
+      status: "CHECKED_IN",
+      slot: { startsAt: { gte: startOfToday(), lt: startOfTomorrow() } },
+    },
+    orderBy: { slot: { startsAt: "asc" } },
+  });
+  if (!next) {
+    throw new Error("No patients waiting");
+  }
+  await startConsultation(clinicId, doctorId, next.id);
+}
+
 export const completeConsultationSchema = z.object({
   notes: z.string().optional(),
   prescription: z.string().optional(),

@@ -13,6 +13,7 @@ import {
 } from "@/src/receptionistHandlers";
 import { addPatientAction, checkInAction } from "@/lib/actions/receptionist";
 import { WeekSlotPicker } from "./WeekSlotPicker";
+import { AutoRefresh } from "../AutoRefresh";
 
 type ReceptionistParams = {
   doctorId?: string;
@@ -102,6 +103,7 @@ export default async function ReceptionistPage({
 
   return (
     <div>
+      <AutoRefresh />
       <div className="page-header">
         <h1>Today</h1>
         <span className="date">

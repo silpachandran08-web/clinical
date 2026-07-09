@@ -3,8 +3,9 @@ import Link from "next/link";
 import { getSession } from "@/lib/session";
 import { countCompletedToday, listMyQueue } from "@/src/doctorHandlers";
 import { searchPatients } from "@/src/receptionistHandlers";
-import { completeConsultationAction, startConsultationAction } from "@/lib/actions/doctor";
+import { completeConsultationAction, startConsultationAction, startNextConsultationAction } from "@/lib/actions/doctor";
 import { PrescriptionBuilder } from "./PrescriptionBuilder";
+import { AutoRefresh } from "../AutoRefresh";
 
 export default async function DoctorQueuePage({
   searchParams,
@@ -29,6 +30,7 @@ export default async function DoctorQueuePage({
 
   return (
     <div>
+      <AutoRefresh />
       <div className="page-header">
         <h1>Today&apos;s queue</h1>
         <span className="date">
@@ -118,7 +120,14 @@ export default async function DoctorQueuePage({
       )}
 
       <div className="card">
-        <h2>Waiting</h2>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+          <h2 style={{ margin: 0 }}>Waiting</h2>
+          {!current && waiting.length > 0 && (
+            <form action={startNextConsultationAction}>
+              <button type="submit">Call next patient →</button>
+            </form>
+          )}
+        </div>
         {waiting.length === 0 ? (
           <p className="empty-state">
             {current ? "No one else waiting." : "No patients checked in yet."}
@@ -133,15 +142,20 @@ export default async function DoctorQueuePage({
               </tr>
             </thead>
             <tbody>
-              {waiting.map((a) => (
+              {waiting.map((a, i) => (
                 <tr key={a.id}>
                   <td>{a.slot.startsAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</td>
-                  <td>{a.patient.name ?? a.patient.phone}</td>
+                  <td>
+                    {a.patient.name ?? a.patient.phone}
+                    {i === 0 && <span className="badge" style={{ marginLeft: 6 }}>next up</span>}
+                  </td>
                   <td>
                     {!current && (
                       <form action={startConsultationAction}>
                         <input type="hidden" name="appointmentId" value={a.id} />
-                        <button type="submit">Start consultation</button>
+                        <button type="submit" className="secondary">
+                          Start this one
+                        </button>
                       </form>
                     )}
                   </td>

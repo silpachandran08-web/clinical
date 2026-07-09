@@ -6,6 +6,7 @@ import {
   completeConsultation,
   completeConsultationSchema,
   startConsultation,
+  startNextConsultation,
 } from "@/src/doctorHandlers";
 import { getSession } from "@/lib/session";
 
@@ -22,6 +23,12 @@ export async function startConsultationAction(formData: FormData) {
   const session = await requireDoctorSession();
   const appointmentId = String(formData.get("appointmentId"));
   await startConsultation(session.clinicId, session.doctorId, appointmentId);
+  revalidatePath("/doctor");
+}
+
+export async function startNextConsultationAction() {
+  const session = await requireDoctorSession();
+  await startNextConsultation(session.clinicId, session.doctorId);
   revalidatePath("/doctor");
 }
 
