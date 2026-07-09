@@ -440,36 +440,39 @@ export default async function ReceptionistPage({
             {appointments.length === 0 ? (
               <p className="empty-state">No appointments today.</p>
             ) : (
-              <div className="schedule-list">
+              <div className="appt-table">
                 {appointments.map((a) => (
-                  <div className="schedule-row" key={a.id}>
-                    <div className="schedule-row-header">
-                      <div className="schedule-time-patient">
-                        <span className="schedule-time">
-                          {a.slot.startsAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", timeZone })}
-                        </span>
-                        <span className="schedule-patient">
-                          <PatientIcon size={14} />
-                          <span>{a.patient.name ?? a.patient.phone}</span>
-                          {a.bookedByStaff ? (
-                            <span className="badge">walk-in</span>
-                          ) : (
-                            <span className="badge info">online</span>
-                          )}
-                        </span>
-                      </div>
-                      <div className="schedule-status">
-                        <span
-                          className={`badge ${
-                            a.status === "CANCELLED" || a.status === "NO_SHOW"
-                              ? "danger"
-                              : a.status === "COMPLETED"
-                                ? "success"
-                                : ""
-                          }`}
-                        >
-                          {a.status}
-                        </span>
+                  <div className="appt-row" key={a.id}>
+                    <span className="appt-time">
+                      {a.slot.startsAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", timeZone })}
+                    </span>
+                    <span className="appt-patient">
+                      <PatientIcon size={14} />
+                      <span className="appt-patient-name">{a.patient.name ?? a.patient.phone}</span>
+                    </span>
+                    <span>
+                      {a.bookedByStaff ? (
+                        <span className="badge">walk-in</span>
+                      ) : (
+                        <span className="badge info">online</span>
+                      )}
+                    </span>
+                    <span className="appt-status">
+                      <span
+                        className={`badge ${
+                          a.status === "CANCELLED" || a.status === "NO_SHOW"
+                            ? "danger"
+                            : a.status === "COMPLETED"
+                              ? "success"
+                              : ""
+                        }`}
+                      >
+                        {a.status}
+                      </span>
+                    </span>
+                    <div className="appt-footer">
+                      <span className="appt-doctor">{a.doctor.name}</span>
+                      <span>
                         {a.status === "CONFIRMED" && (
                           <form action={checkInAction}>
                             <input type="hidden" name="appointmentId" value={a.id} />
@@ -478,9 +481,8 @@ export default async function ReceptionistPage({
                             </button>
                           </form>
                         )}
-                      </div>
+                      </span>
                     </div>
-                    <div className="muted schedule-doctor" style={{ fontSize: 11.5 }}>{a.doctor.name}</div>
                   </div>
                 ))}
               </div>

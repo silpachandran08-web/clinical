@@ -643,10 +643,17 @@ tbody tr:last-child td {
   font-weight: 600;
   font-size: 13.5px;
   color: var(--text);
+  min-width: 0;
 }
 .doctor-availability-name svg {
   color: var(--accent);
   flex-shrink: 0;
+}
+.doctor-availability-name span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .doctor-availability-live {
@@ -733,29 +740,6 @@ tbody tr:last-child td {
   padding-bottom: 0;
 }
 
-.schedule-row-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.schedule-time-patient {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  min-width: 0;
-}
-
-.schedule-time {
-  font-size: 12.5px;
-  font-weight: 700;
-  color: var(--text);
-  flex-shrink: 0;
-}
-
 .schedule-info {
   flex: 1;
   min-width: 0;
@@ -775,15 +759,90 @@ tbody tr:last-child td {
   flex-shrink: 0;
 }
 
-.schedule-doctor {
-  padding-left: 22px;
+/* --- Appointment table (Today's schedule / a doctor's day-list) — a real
+   grid so every row's time/name/badge/status columns line up in a straight
+   line no matter how long a patient's name is, instead of each row's flex
+   content pushing its neighbors around independently. `subgrid` lets each
+   .appt-row share the parent .appt-table's column tracks while still being
+   its own box (so the per-row border/padding still works).
+   The name column is a bounded minmax(50px, 110px), NOT minmax(0, 1fr) —
+   an unbroken very-long name can otherwise blow out a shared fr track
+   under subgrid and collapse the column to 0 width for every row, not
+   just the long one. A fixed cap sidesteps that entirely. The Check-in/
+   Print action lives in its own full-width footer row rather than a 5th
+   inline column — cramming a button in alongside two badges is what was
+   forcing rows to overflow the narrow sidebar card in the first place. --- */
+.appt-table {
+  display: grid;
+  grid-template-columns: 54px minmax(50px, 110px) auto auto;
+  column-gap: 8px;
+  row-gap: 4px;
 }
 
-.schedule-status {
+.appt-table.no-channel {
+  grid-template-columns: 54px minmax(50px, 140px) auto;
+}
+
+.appt-row {
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-soft);
+}
+.appt-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.appt-time {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.appt-patient {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.appt-patient svg {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.appt-patient-name {
+  display: inline-block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.appt-status {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-shrink: 0;
+}
+
+.appt-footer {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-left: 62px;
+}
+
+.appt-doctor {
+  font-size: 11.5px;
+  color: var(--text-muted);
 }
 
 /* --- Month calendar (doctor dashboard) — read-only month grid with a dot

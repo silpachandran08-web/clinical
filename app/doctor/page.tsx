@@ -249,43 +249,44 @@ export default async function DoctorQueuePage({
                   {isPastDay ? "No appointments on this day." : "No appointments scheduled."}
                 </p>
               ) : (
-                <div className="schedule-list">
+                <div className="appt-table no-channel">
                   {dayAppointments.map((a) => (
-                    <div className="schedule-row" key={a.id}>
-                      <div className="schedule-row-header">
-                        <div className="schedule-time-patient">
-                          <span className="schedule-time">
-                            {a.slot.startsAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", timeZone: clinic.timezone })}
-                          </span>
-                          <span className="schedule-patient">
-                            <PatientIcon size={14} />
-                            <Link href={`/doctor/patients/${a.patient.id}`}>{a.patient.name ?? a.patient.phone}</Link>
-                          </span>
-                        </div>
-                        <div className="schedule-status">
-                          <span
-                            className={`badge ${
-                              a.status === "CANCELLED" || a.status === "NO_SHOW"
-                                ? "danger"
-                                : a.status === "COMPLETED"
-                                  ? "success"
-                                  : ""
-                            }`}
+                    <div className="appt-row" key={a.id}>
+                      <span className="appt-time">
+                        {a.slot.startsAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", timeZone: clinic.timezone })}
+                      </span>
+                      <span className="appt-patient">
+                        <PatientIcon size={14} />
+                        <Link href={`/doctor/patients/${a.patient.id}`} className="appt-patient-name">
+                          {a.patient.name ?? a.patient.phone}
+                        </Link>
+                      </span>
+                      <span className="appt-status">
+                        <span
+                          className={`badge ${
+                            a.status === "CANCELLED" || a.status === "NO_SHOW"
+                              ? "danger"
+                              : a.status === "COMPLETED"
+                                ? "success"
+                                : ""
+                          }`}
+                        >
+                          {a.status}
+                        </span>
+                      </span>
+                      {a.status === "COMPLETED" && a.consultation && (
+                        <div className="appt-footer">
+                          <span />
+                          <a
+                            className="btn-link"
+                            href={`/doctor/consultations/${a.consultation.id}/print`}
+                            target="_blank"
+                            rel="noreferrer"
                           >
-                            {a.status}
-                          </span>
-                          {a.status === "COMPLETED" && a.consultation && (
-                            <a
-                              className="btn-link"
-                              href={`/doctor/consultations/${a.consultation.id}/print`}
-                              target="_blank"
-                              rel="noreferrer"
-                            >
-                              <PrinterIcon size={13} /> Print
-                            </a>
-                          )}
+                            <PrinterIcon size={13} /> Print
+                          </a>
                         </div>
-                      </div>
+                      )}
                     </div>
                   ))}
                 </div>
