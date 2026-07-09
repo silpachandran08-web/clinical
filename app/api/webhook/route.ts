@@ -7,7 +7,7 @@ import { handleWebhookMessage, handleWebhookVerification } from "@/src/webhookHa
 export const maxDuration = 60;
 
 export async function GET(request: NextRequest) {
-  const result = handleWebhookVerification(Object.fromEntries(request.nextUrl.searchParams));
+  const result = await handleWebhookVerification(Object.fromEntries(request.nextUrl.searchParams));
   return new NextResponse(result.body, { status: result.status });
 }
 

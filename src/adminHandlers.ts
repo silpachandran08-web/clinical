@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { z } from "zod";
 import { prisma } from "./db/client";
 import { generateSlotsForDoctor } from "./scheduling/slotGenerator";
@@ -49,6 +50,43 @@ export async function getClinic(clinicId: string) {
 
 export async function updateClinic(clinicId: string, input: z.infer<typeof updateClinicSchema>) {
   return prisma.clinic.update({ where: { id: clinicId }, data: input });
+}
+
+export const updateWhatsAppCredentialsSchema = z.object({
+  phoneNumberId: z.string().optional(),
+  accessToken: z.string().optional(),
+  appSecret: z.string().optional(),
+});
+
+/**
+ * Access Token / App Secret are masked in the admin UI once set — the real
+ * values are never sent back to the browser, so a blank submission means
+ * "leave it as-is," not "clear it." Only a non-empty value replaces what's
+ * stored. Phone Number ID follows the same rule for consistency, even
+ * though it isn't itself a secret.
+ */
+export async function updateWhatsAppCredentials(
+  clinicId: string,
+  input: z.infer<typeof updateWhatsAppCredentialsSchema>,
+) {
+  return prisma.clinic.update({
+    where: { id: clinicId },
+    data: {
+      whatsappPhoneNumberId: input.phoneNumberId || undefined,
+      whatsappAccessToken: input.accessToken || undefined,
+      whatsappAppSecret: input.appSecret || undefined,
+    },
+  });
+}
+
+/** Generates and saves a verify token the first time a clinic needs one — the admin pastes this into Meta's webhook config. */
+export async function ensureWhatsAppVerifyToken(clinicId: string): Promise<string> {
+  const clinic = await prisma.clinic.findUniqueOrThrow({ where: { id: clinicId } });
+  if (clinic.whatsappVerifyToken) return clinic.whatsappVerifyToken;
+
+  const token = crypto.randomBytes(16).toString("hex");
+  await prisma.clinic.update({ where: { id: clinicId }, data: { whatsappVerifyToken: token } });
+  return token;
 }
 
 export async function listDepartments(clinicId: string) {

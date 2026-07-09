@@ -94,6 +94,15 @@ model Clinic {
   timezone           String             @default("Asia/Riyadh")
   defaultLocale      Locale             @default(AR)
   whatsappNumber     String?            @unique // null until the clinic configures WhatsApp
+  // Per-clinic Meta WhatsApp Cloud API credentials — lets each clinic run
+  // its own WhatsApp Business number/app instead of one global env-var
+  // config. AccessToken/AppSecret are masked in the admin UI once set;
+  // VerifyToken is server-generated and shown in plaintext for the admin
+  // to paste into Meta's webhook config.
+  whatsappPhoneNumberId String?
+  whatsappAccessToken   String?
+  whatsappAppSecret     String?
+  whatsappVerifyToken   String?
   weekendDays        Int[]              @default([5, 6]) // Fri=5, Sat=6 (0=Sun..6=Sat)
   integrationMode    IntegrationMode    @default(NATIVE)
   integrationConfig  Json?              // adapter-specific connection details

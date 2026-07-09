@@ -74,10 +74,10 @@ gh repo create clinic-whatsapp-assistant --private --source=. --push
    - `SESSION_SECRET`
    - `EMAIL_PROVIDER` = `console` (see the security note in step 6 before leaving
      this as-is on a public URL)
-   - `WHATSAPP_PROVIDER` = `meta`
-   - `META_PHONE_NUMBER_ID`, `META_ACCESS_TOKEN`, `META_VERIFY_TOKEN`, `META_APP_SECRET`
-     (you'll get real values for these in step 5 — put in placeholders now,
-     redeploy after step 5)
+
+   WhatsApp/Meta credentials are **not** env vars — each clinic saves its own in
+   Admin → Clinic → "WhatsApp API credentials" after registering (step 6), so
+   step 5 below happens *after* the clinic exists, not before deploy.
 4. Deploy. Once it's live, confirm the basics work:
    `curl https://<your-project>.vercel.app/api/health` → `{"status":"ok"}`
 
@@ -86,24 +86,25 @@ gh repo create clinic-whatsapp-assistant --private --source=. --push
 1. developers.facebook.com → My Apps → Create App → type **Business**.
 2. Add the **WhatsApp** product to the app.
 3. WhatsApp → API Setup page gives you a free test number and a **Phone
-   Number ID** → `META_PHONE_NUMBER_ID`.
+   Number ID**.
 4. Generate a long-lived token instead of the default 24-hour one: Business
    Settings → System Users → create one → generate a token with
-   `whatsapp_business_messaging` permission, assigned to this app → `META_ACCESS_TOKEN`.
-5. App dashboard → Settings → Basic → **App Secret** → `META_APP_SECRET`
-   (this is what verifies the webhook is really from Meta — different from
-   the access token above).
-6. Make up any random string for `META_VERIFY_TOKEN` (you choose it, Meta just
-   echoes it back during setup to prove you control the endpoint).
-7. Put the real values for steps 3–6 into Vercel's env vars and **redeploy**
-   (env var changes don't apply to already-built deployments).
-8. Back in WhatsApp → Configuration: set **Webhook URL** to
-   `https://<your-project>.vercel.app/api/webhook`, **Verify Token** to the
-   same string as `META_VERIFY_TOKEN`, click Verify and Save, then subscribe
-   to the `messages` field.
-9. Still on the API Setup page, under "To", add up to 5 friends' phone
+   `whatsapp_business_messaging` permission, assigned to this app.
+5. App dashboard → Settings → Basic → **App Secret** (this is what verifies
+   the webhook is really from Meta — different from the access token above).
+6. In your app's Admin → Clinic page, open the "WhatsApp API credentials" card,
+   click Edit, and paste in the Phone Number ID / Access Token / App Secret from
+   steps 3–5. Saving generates a **Verify Token** and shows the webhook callback
+   URL right there on the same card — copy both.
+7. Back in Meta's WhatsApp → Configuration: paste the webhook URL and verify
+   token from step 6, click Verify and Save, then subscribe to the `messages`
+   field.
+8. Still on the API Setup page, under "To", add up to 5 friends' phone
    numbers as test recipients — each gets a WhatsApp message from Meta they
    must accept before the bot can message them.
+
+Every additional clinic that signs up repeats steps 1–8 with their own Meta App
+and number — credentials are stored per clinic, not shared.
 
 ## 6. Register the clinic and set it up
 
@@ -142,8 +143,9 @@ fastest way to see what actually happened if a reply doesn't come back.
   next query — the first request after it's been idle can time out or fail once.
   Just retry; it should work immediately after.
 - **No reply at all**: check Vercel function logs first. Most likely causes:
-  webhook signature check failing (double-check `META_APP_SECRET`, not the
-  access token), or `whatsappNumber` not matching exactly (see step 6).
+  webhook signature check failing (double-check the App Secret saved on the
+  clinic's WhatsApp API credentials card, not the access token), or
+  `whatsappNumber` not matching exactly (see step 6).
 - **"Prisma Client could not locate the Query Engine"**: means `binaryTargets`
   in `prisma/schema.prisma` didn't take effect — confirm `postinstall` ran
   `prisma generate` in the Vercel build logs.
@@ -151,5 +153,5 @@ fastest way to see what actually happened if a reply doesn't come back.
   `export const maxDuration = 60`; if that's missing, the default is 10s on
   the Hobby plan and a multi-round tool-use conversation can exceed it.
 - **Webhook verification fails when saving in Meta's Configuration page**:
-  `META_VERIFY_TOKEN` in Vercel must exactly match what you typed into Meta's
-  form, and the env var change must have been deployed already.
+  the Verify Token shown on the clinic's WhatsApp API credentials card must
+  exactly match what you typed into Meta's form.
