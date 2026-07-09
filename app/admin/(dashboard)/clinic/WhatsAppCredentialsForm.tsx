@@ -26,11 +26,6 @@ export function WhatsAppCredentialsForm({
   }, []);
 
   function handleSubmit(formData: FormData) {
-    // Guards against any non-user-initiated submit (e.g. a password-manager
-    // extension auto-submitting after it fills a field) actually saving —
-    // only an explicit "Save changes" click, which only exists in edit mode,
-    // should ever get here.
-    if (!isEditing) return;
     startTransition(async () => {
       await saveWhatsAppCredentialsAction(formData);
       setIsEditing(false);
@@ -51,50 +46,66 @@ export function WhatsAppCredentialsForm({
         through WhatsApp.
       </p>
 
-      <form action={handleSubmit} className="stack">
-        <label>
-          Phone Number ID
-          <input name="phoneNumberId" defaultValue={phoneNumberId ?? ""} disabled={!isEditing} />
-        </label>
-        <label>
-          Access Token
-          <input
-            name="accessToken"
-            type="text"
-            autoComplete="off"
-            autoCorrect="off"
-            spellCheck={false}
-            data-1p-ignore
-            data-lpignore="true"
-            placeholder={hasAccessToken ? SAVED_PLACEHOLDER : "e.g. EAAG..."}
-            disabled={!isEditing}
-          />
-        </label>
-        <label>
-          App Secret
-          <input
-            name="appSecret"
-            type="text"
-            autoComplete="off"
-            autoCorrect="off"
-            spellCheck={false}
-            data-1p-ignore
-            data-lpignore="true"
-            placeholder={hasAppSecret ? SAVED_PLACEHOLDER : "From App settings → Basic"}
-            disabled={!isEditing}
-          />
-        </label>
+      {isEditing ? (
+        <form action={handleSubmit} className="stack">
+          <label>
+            Phone Number ID
+            <input name="phoneNumberId" defaultValue={phoneNumberId ?? ""} autoComplete="off" />
+          </label>
+          <label>
+            Access Token
+            <input
+              name="accessToken"
+              type="text"
+              autoComplete="off"
+              autoCorrect="off"
+              spellCheck={false}
+              data-1p-ignore
+              data-lpignore="true"
+              placeholder={hasAccessToken ? SAVED_PLACEHOLDER : "e.g. EAAG..."}
+            />
+          </label>
+          <label>
+            App Secret
+            <input
+              name="appSecret"
+              type="text"
+              autoComplete="off"
+              autoCorrect="off"
+              spellCheck={false}
+              data-1p-ignore
+              data-lpignore="true"
+              placeholder={hasAppSecret ? SAVED_PLACEHOLDER : "From App settings → Basic"}
+            />
+          </label>
 
-        {isEditing ? (
-          <button type="submit" disabled={pending}>
-            {pending ? "Saving…" : "Save changes"}
-          </button>
-        ) : (
-          <button type="button" className="secondary" onClick={() => setIsEditing(true)} style={{ alignSelf: "flex-start" }}>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button type="submit" disabled={pending}>
+              {pending ? "Saving…" : "Save changes"}
+            </button>
+            <button type="button" className="secondary" onClick={() => setIsEditing(false)} disabled={pending}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      ) : (
+        <div>
+          <div className="stack" style={{ gap: 6, marginBottom: 14 }}>
+            <p style={{ margin: 0 }}>
+              <span className="muted">Phone Number ID:</span> {phoneNumberId || "—"}
+            </p>
+            <p style={{ margin: 0 }}>
+              <span className="muted">Access Token:</span> {hasAccessToken ? "Configured" : "Not set"}
+            </p>
+            <p style={{ margin: 0 }}>
+              <span className="muted">App Secret:</span> {hasAppSecret ? "Configured" : "Not set"}
+            </p>
+          </div>
+          <button type="button" className="secondary" onClick={() => setIsEditing(true)}>
             Edit
           </button>
-        )}
-      </form>
+        </div>
+      )}
 
       <hr className="divider" />
 
