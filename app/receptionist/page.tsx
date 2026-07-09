@@ -2,15 +2,29 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/session";
 import { listDoctors } from "@/src/adminHandlers";
 import {
+  formatDayParam,
   formatWeekParam,
+  getDayParam,
   getWeekStart,
-  listDoctorsWithTodayStatus,
+  listDoctorsStatusForDay,
   listTodayAppointments,
   listWeekSlots,
   searchPatients,
 } from "@/src/receptionistHandlers";
 import { addPatientAction, checkInAction } from "@/lib/actions/receptionist";
 import { WeekSlotPicker } from "./WeekSlotPicker";
+
+type ReceptionistParams = {
+  doctorId?: string;
+  error?: string;
+  booked?: string;
+  patientQuery?: string;
+  added?: string;
+  patientName?: string;
+  patientPhone?: string;
+  week?: string;
+  statusDay?: string;
+};
 
 function slotQuery(params: {
   doctorId: string;
@@ -26,30 +40,41 @@ function slotQuery(params: {
   return `/receptionist?${q.toString()}#assign-doctor`;
 }
 
+function dayNavQuery(current: ReceptionistParams, statusDay: string) {
+  const q = new URLSearchParams();
+  for (const [key, value] of Object.entries(current)) {
+    if (value && key !== "statusDay") q.set(key, value);
+  }
+  q.set("statusDay", statusDay);
+  return `/receptionist?${q.toString()}#doctor-availability`;
+}
+
 export default async function ReceptionistPage({
   searchParams,
 }: {
-  searchParams: Promise<{
-    doctorId?: string;
-    error?: string;
-    booked?: string;
-    patientQuery?: string;
-    added?: string;
-    patientName?: string;
-    patientPhone?: string;
-    week?: string;
-  }>;
+  searchParams: Promise<ReceptionistParams>;
 }) {
   const session = await getSession();
   if (!session) redirect("/login");
 
   const params = await searchParams;
 
-  const [appointments, doctorStatus, allDoctors] = await Promise.all([
+  const today = getDayParam();
+  const statusDay = getDayParam(params.statusDay);
+  const isToday = statusDay.getTime() === today.getTime();
+  const prevDay = new Date(statusDay);
+  prevDay.setDate(prevDay.getDate() - 1);
+  const nextDay = new Date(statusDay);
+  nextDay.setDate(nextDay.getDate() + 1);
+  const canGoBackDay = statusDay > today;
+
+  const [appointments, todayDoctorStatus, browsedDoctorStatus, allDoctors] = await Promise.all([
     listTodayAppointments(session.clinicId),
-    listDoctorsWithTodayStatus(session.clinicId),
+    listDoctorsStatusForDay(session.clinicId, today),
+    isToday ? Promise.resolve(null) : listDoctorsStatusForDay(session.clinicId, statusDay),
     listDoctors(session.clinicId),
   ]);
+  const doctorStatus = browsedDoctorStatus ?? todayDoctorStatus;
 
   const activeDoctors = allDoctors.filter((d) => d.active);
   const selectedDoctorId = params.doctorId ?? "";
@@ -71,8 +96,8 @@ export default async function ReceptionistPage({
   const selectedPatientPhone = params.patientPhone ?? "";
   const hasSelectedPatient = Boolean(selectedPatientPhone);
 
-  const waitingCount = doctorStatus.reduce((sum, d) => sum + d.waiting.length, 0);
-  const inProgressCount = doctorStatus.filter((d) => d.inProgressWith).length;
+  const waitingCount = todayDoctorStatus.reduce((sum, d) => sum + d.waiting.length, 0);
+  const inProgressCount = todayDoctorStatus.filter((d) => d.inProgressWith).length;
   const now = new Date();
 
   return (
@@ -86,7 +111,7 @@ export default async function ReceptionistPage({
 
       <div className="stat-grid">
         <div className="stat-card">
-          <div className="stat-value">{doctorStatus.length}</div>
+          <div className="stat-value">{todayDoctorStatus.length}</div>
           <div className="stat-label">Doctors active</div>
         </div>
         <div className="stat-card">
@@ -103,8 +128,20 @@ export default async function ReceptionistPage({
         </div>
       </div>
 
-      <div className="card">
-        <h2>Doctor status</h2>
+      <div className="card" id="doctor-availability">
+        <div className="week-nav" style={{ marginTop: 0, marginBottom: 14 }}>
+          <a href={canGoBackDay ? dayNavQuery(params, formatDayParam(prevDay)) : undefined} style={!canGoBackDay ? { color: "var(--text-muted)", pointerEvents: "none" } : undefined}>
+            ← Previous day
+          </a>
+          <span className="range">
+            {isToday
+              ? "Today"
+              : statusDay.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}
+          </span>
+          <a href={dayNavQuery(params, formatDayParam(nextDay))}>Next day →</a>
+        </div>
+
+        <h2>Doctor availability{isToday ? "" : ` — ${statusDay.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}`}</h2>
         {doctorStatus.length === 0 ? (
           <p className="empty-state">No active doctors yet.</p>
         ) : (
@@ -112,24 +149,45 @@ export default async function ReceptionistPage({
             <thead>
               <tr>
                 <th>Doctor</th>
-                <th>Right now</th>
-                <th>Waiting</th>
+                {isToday && (
+                  <>
+                    <th>Right now</th>
+                    <th>Waiting</th>
+                  </>
+                )}
+                <th>Availability</th>
               </tr>
             </thead>
             <tbody>
               {doctorStatus.map((d) => (
                 <tr key={d.id}>
                   <td>{d.name}</td>
+                  {isToday && (
+                    <>
+                      <td>
+                        {d.inProgressWith ? (
+                          <span className="badge success">
+                            With {d.inProgressWith.patient.name ?? d.inProgressWith.patient.phone}
+                          </span>
+                        ) : (
+                          <span className="muted">Free</span>
+                        )}
+                      </td>
+                      <td>{d.waiting.length > 0 ? `${d.waiting.length} waiting` : "—"}</td>
+                    </>
+                  )}
                   <td>
-                    {d.inProgressWith ? (
-                      <span className="badge success">
-                        With {d.inProgressWith.patient.name ?? d.inProgressWith.patient.phone}
-                      </span>
+                    {d.totalSlots === 0 ? (
+                      <span className="muted">Not working this day</span>
+                    ) : d.openSlots.length === 0 ? (
+                      <span className="badge danger">Fully booked</span>
                     ) : (
-                      <span className="muted">Free</span>
+                      <span className="badge success">
+                        {d.openSlots.length} open · next{" "}
+                        {d.openSlots[0].startsAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      </span>
                     )}
                   </td>
-                  <td>{d.waiting.length > 0 ? `${d.waiting.length} waiting` : "—"}</td>
                 </tr>
               ))}
             </tbody>

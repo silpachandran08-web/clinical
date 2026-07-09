@@ -22,29 +22,67 @@ export async function listTodayAppointments(clinicId: string) {
   });
 }
 
-/** For the "who's with a patient right now vs who's waiting" board. */
-export async function listDoctorsWithTodayStatus(clinicId: string) {
+/** Local "YYYY-MM-DD", not UTC — toISOString() would roll back a day for any timezone ahead of UTC (e.g. Riyadh, UTC+3). */
+function formatLocalDate(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+/** ISO "YYYY-MM-DD" -> midnight local Date, or today if missing/invalid. */
+export function getDayParam(param?: string): Date {
+  const day = param ? new Date(`${param}T00:00:00`) : new Date();
+  const start = isNaN(day.getTime()) ? new Date() : day;
+  start.setHours(0, 0, 0, 0);
+  return start;
+}
+
+export function formatDayParam(date: Date): string {
+  return formatLocalDate(date);
+}
+
+/**
+ * Each active doctor's status for one day: live "who's with a patient /
+ * who's waiting" (only ever populated for today — future appointments can't
+ * be checked in yet) plus that day's open slots, so the receptionist can
+ * see availability before starting the booking flow at all.
+ */
+export async function listDoctorsStatusForDay(clinicId: string, date: Date) {
+  const dayStart = new Date(date);
+  const dayEnd = new Date(dayStart);
+  dayEnd.setDate(dayEnd.getDate() + 1);
+
   const doctors = await prisma.doctor.findMany({
     where: { clinicId, active: true },
     include: {
       appointments: {
         where: {
-          slot: { startsAt: { gte: startOfToday(), lt: startOfTomorrow() } },
+          slot: { startsAt: { gte: dayStart, lt: dayEnd } },
           status: { in: ["CHECKED_IN", "IN_PROGRESS"] },
         },
         include: { patient: true, slot: true },
         orderBy: { slot: { startsAt: "asc" } },
       },
+      slots: {
+        where: { startsAt: { gte: dayStart, lt: dayEnd } },
+        orderBy: { startsAt: "asc" },
+      },
     },
     orderBy: { name: "asc" },
   });
 
-  return doctors.map((d) => ({
-    id: d.id,
-    name: d.name,
-    inProgressWith: d.appointments.find((a) => a.status === "IN_PROGRESS") ?? null,
-    waiting: d.appointments.filter((a) => a.status === "CHECKED_IN"),
-  }));
+  return doctors.map((d) => {
+    const openSlots = d.slots.filter((s) => s.status === "OPEN");
+    return {
+      id: d.id,
+      name: d.name,
+      inProgressWith: d.appointments.find((a) => a.status === "IN_PROGRESS") ?? null,
+      waiting: d.appointments.filter((a) => a.status === "CHECKED_IN"),
+      openSlots,
+      totalSlots: d.slots.length,
+    };
+  });
 }
 
 export async function checkInAppointment(clinicId: string, appointmentId: string) {
@@ -72,7 +110,7 @@ export function getWeekStart(param?: string): Date {
 }
 
 export function formatWeekParam(date: Date): string {
-  return date.toISOString().slice(0, 10);
+  return formatLocalDate(date);
 }
 
 export interface WeekDay {
