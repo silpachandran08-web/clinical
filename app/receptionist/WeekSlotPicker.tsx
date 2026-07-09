@@ -7,6 +7,7 @@ export interface DaySlot {
   id: string;
   time: string;
   status: string;
+  isPast: boolean;
 }
 
 export interface DayRow {
@@ -56,7 +57,7 @@ export function WeekSlotPicker({
               </span>
             ) : (
               day.slots.map((slot) =>
-                slot.status === "OPEN" ? (
+                slot.status === "OPEN" && !slot.isPast ? (
                   <button
                     key={slot.id}
                     type="button"
@@ -66,7 +67,7 @@ export function WeekSlotPicker({
                     {slot.time}
                   </button>
                 ) : (
-                  <span key={slot.id} className="slot-btn booked">
+                  <span key={slot.id} className={`slot-btn ${slot.status === "OPEN" ? "past" : "booked"}`}>
                     {slot.time}
                   </span>
                 ),

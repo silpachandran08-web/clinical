@@ -357,7 +357,11 @@ export default async function ReceptionistPage({
                   <span className="slot-btn booked" style={{ marginLeft: 6, cursor: "default" }}>
                     red
                   </span>
-                  already taken
+                  already taken &nbsp;·&nbsp;
+                  <span className="slot-btn past" style={{ marginLeft: 6, cursor: "default" }}>
+                    gray
+                  </span>
+                  already past
                 </p>
 
                 <WeekSlotPicker
@@ -371,6 +375,7 @@ export default async function ReceptionistPage({
                       id: slot.id,
                       status: slot.status,
                       time: slot.startsAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                      isPast: slot.startsAt.getTime() < now.getTime(),
                     })),
                   }))}
                 />
