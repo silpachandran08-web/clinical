@@ -65,6 +65,12 @@ enum Locale {
   EN
 }
 
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
 // Which EHR/scheduling system this clinic's data actually lives in.
 // NATIVE = our own Postgres is the source of truth (MVP default).
 enum IntegrationMode {
@@ -219,6 +225,12 @@ model Patient {
   name      String?
   email     String?  // optional — set when a receptionist registers a walk-in with an email
   locale    Locale   @default(AR)
+  // Doctor enters current age; we store the resulting birth year instead of
+  // the raw age so it's always re-derived correctly on later visits without
+  // anyone having to update it.
+  birthYear     Int?
+  gender        Gender?
+  medicalNotes  String? // allergies, chronic conditions, anything clinically relevant
   createdAt DateTime @default(now())
 
   appointments  Appointment[]
@@ -265,10 +277,17 @@ model Consultation {
   patient       Patient     @relation(fields: [patientId], references: [id])
   notes         String?
   prescription  String?
+  // When the doctor recommends "come back in N days" — we store the resulting
+  // date (not the raw N) since that's what a reminder job would query
+  // against. followUpReminderSentAt mirrors Appointment.reminderSentAt's
+  // "don't remind twice" convention for a future WhatsApp reminder agent.
+  followUpDate           DateTime?
+  followUpReminderSentAt DateTime?
   createdAt     DateTime    @default(now())
 
   @@index([patientId])
   @@index([doctorId])
+  @@index([followUpDate])
 }
 
 model Conversation {

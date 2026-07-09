@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { Gender } from "@prisma/client";
 import { prisma } from "./db/client";
 
 /**
@@ -73,6 +74,7 @@ export async function startNextConsultation(clinicId: string, doctorId: string) 
 export const completeConsultationSchema = z.object({
   notes: z.string().optional(),
   prescription: z.string().optional(),
+  followUpDays: z.coerce.number().int().positive().optional(),
 });
 
 export async function completeConsultation(
@@ -86,6 +88,12 @@ export async function completeConsultation(
   });
   if (!appointment) throw new Error("Appointment not found, not yours, or not in progress");
 
+  let followUpDate: Date | undefined;
+  if (input.followUpDays) {
+    followUpDate = new Date();
+    followUpDate.setDate(followUpDate.getDate() + input.followUpDays);
+  }
+
   await prisma.$transaction([
     prisma.consultation.create({
       data: {
@@ -94,10 +102,41 @@ export async function completeConsultation(
         patientId: appointment.patientId,
         notes: input.notes,
         prescription: input.prescription,
+        followUpDate,
       },
     }),
     prisma.appointment.update({ where: { id: appointmentId }, data: { status: "COMPLETED" } }),
   ]);
+}
+
+/** Doctor enters current age; we store the birth year so age is always re-derived correctly on later visits. */
+export function calculateAge(birthYear: number | null | undefined): number | null {
+  if (!birthYear) return null;
+  return new Date().getFullYear() - birthYear;
+}
+
+export const updatePatientDetailsSchema = z.object({
+  age: z.coerce.number().int().min(0).max(130).optional(),
+  gender: z.nativeEnum(Gender).optional(),
+  medicalNotes: z.string().optional(),
+});
+
+export async function updatePatientDetails(
+  clinicId: string,
+  patientId: string,
+  input: z.infer<typeof updatePatientDetailsSchema>,
+) {
+  const result = await prisma.patient.updateMany({
+    where: { id: patientId, clinicId },
+    data: {
+      birthYear: input.age !== undefined ? new Date().getFullYear() - input.age : undefined,
+      gender: input.gender,
+      medicalNotes: input.medicalNotes,
+    },
+  });
+  if (result.count === 0) {
+    throw new Error("Patient not found");
+  }
 }
 
 /**

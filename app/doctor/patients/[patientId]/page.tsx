@@ -1,8 +1,9 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getSession } from "@/lib/session";
-import { listPatientHistory } from "@/src/doctorHandlers";
+import { calculateAge, listPatientHistory } from "@/src/doctorHandlers";
 import { prisma } from "@/src/db/client";
+import { PatientDetailsForm } from "./PatientDetailsForm";
 
 export default async function PatientHistoryPage({
   params,
@@ -27,6 +28,16 @@ export default async function PatientHistoryPage({
       <p className="muted">{patient.phone}</p>
 
       <div className="card">
+        <h2>Patient details</h2>
+        <PatientDetailsForm
+          patientId={patient.id}
+          age={calculateAge(patient.birthYear)}
+          gender={patient.gender}
+          medicalNotes={patient.medicalNotes}
+        />
+      </div>
+
+      <div className="card">
         <h2>Visit history</h2>
         {history.length === 0 ? (
           <p className="empty-state">No prior visits on record.</p>
@@ -38,6 +49,7 @@ export default async function PatientHistoryPage({
                 <th>Doctor</th>
                 <th>Notes</th>
                 <th>Prescription</th>
+                <th>Follow-up</th>
               </tr>
             </thead>
             <tbody>
@@ -47,6 +59,7 @@ export default async function PatientHistoryPage({
                   <td>{c.doctor.name}</td>
                   <td>{c.notes ?? "—"}</td>
                   <td>{c.prescription ?? "—"}</td>
+                  <td>{c.followUpDate ? c.followUpDate.toLocaleDateString() : "—"}</td>
                 </tr>
               ))}
             </tbody>

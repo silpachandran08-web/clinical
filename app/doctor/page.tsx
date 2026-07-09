@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getSession } from "@/lib/session";
-import { countCompletedToday, listMyQueue } from "@/src/doctorHandlers";
+import { calculateAge, countCompletedToday, listMyQueue } from "@/src/doctorHandlers";
 import { searchPatients } from "@/src/receptionistHandlers";
 import { completeConsultationAction, startConsultationAction, startNextConsultationAction } from "@/lib/actions/doctor";
 import { PrescriptionBuilder } from "./PrescriptionBuilder";
@@ -27,6 +27,11 @@ export default async function DoctorQueuePage({
   const waiting = queue.filter((a) => a.status === "CHECKED_IN");
   const current = queue.find((a) => a.status === "IN_PROGRESS");
   const now = new Date();
+
+  const GENDER_ABBR: Record<string, string> = { MALE: "M", FEMALE: "F", OTHER: "O" };
+  const currentAge = current ? calculateAge(current.patient.birthYear) : null;
+  const currentGender = current?.patient.gender ? GENDER_ABBR[current.patient.gender] : null;
+  const currentDemographics = [currentAge, currentGender].filter(Boolean).join(", ");
 
   return (
     <div>
@@ -101,10 +106,15 @@ export default async function DoctorQueuePage({
 
       {current && (
         <div className="card" style={{ borderColor: "var(--accent)" }}>
-          <h2>In progress: {current.patient.name ?? current.patient.phone}</h2>
+          <h2>
+            In progress: {current.patient.name ?? current.patient.phone}
+            {currentDemographics && <span className="muted"> ({currentDemographics})</span>}
+          </h2>
           <p className="muted">
             Slot {current.slot.startsAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} ·{" "}
-            <Link href={`/doctor/patients/${current.patient.id}`}>View patient history</Link>
+            <Link href={`/doctor/patients/${current.patient.id}`}>
+              {currentDemographics ? "View patient history" : "Add patient details →"}
+            </Link>
           </p>
           <form action={completeConsultationAction} className="stack" style={{ maxWidth: 560 }}>
             <input type="hidden" name="appointmentId" value={current.id} />
@@ -114,6 +124,10 @@ export default async function DoctorQueuePage({
             </label>
             <label>Prescription</label>
             <PrescriptionBuilder fieldName="prescription" />
+            <label>
+              Ask patient to return in (days, optional)
+              <input name="followUpDays" type="number" min={1} placeholder="e.g. 14" />
+            </label>
             <button type="submit">Complete visit</button>
           </form>
         </div>
