@@ -14,9 +14,21 @@ import { generateSlotsForDoctor } from "./scheduling/slotGenerator";
  * field would let one clinic write into another's data by editing HTML.
  */
 
+/**
+ * Strips everything but digits and re-adds a single leading "+" — however
+ * the admin types/pastes it ("+1 (555) 194-9076", "1 555 194 9076)", etc.),
+ * this always lands on the exact clean E.164 shape that inbound webhook
+ * lookups compare against (see normalizePhone in metaCloudProvider.ts).
+ * Without this, a stray space or missing "+" silently breaks WhatsApp
+ * routing with no validation error to catch it.
+ */
+function normalizeWhatsAppNumber(raw: string): string {
+  return `+${raw.replace(/[^\d]/g, "")}`;
+}
+
 export const updateClinicSchema = z.object({
   name: z.string().min(1),
-  whatsappNumber: z.string().min(1),
+  whatsappNumber: z.string().min(1).transform(normalizeWhatsAppNumber),
   timezone: z.string().optional(),
   defaultLocale: z.enum(["AR", "EN"]).optional(),
 });
