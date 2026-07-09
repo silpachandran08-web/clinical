@@ -131,11 +131,12 @@ export const updatePatientDetailsSchema = z.object({
 
 export async function updatePatientDetails(
   clinicId: string,
+  doctorId: string,
   patientId: string,
   input: z.infer<typeof updatePatientDetailsSchema>,
 ) {
   const result = await prisma.patient.updateMany({
-    where: { id: patientId, clinicId },
+    where: { id: patientId, clinicId, appointments: { some: { doctorId } } },
     data: {
       birthYear: input.age !== undefined ? new Date().getFullYear() - input.age : undefined,
       gender: input.gender,
@@ -143,8 +144,33 @@ export async function updatePatientDetails(
     },
   });
   if (result.count === 0) {
-    throw new Error("Patient not found");
+    throw new Error("Patient not found, or not one of your patients");
   }
+}
+
+/**
+ * Patients this doctor has (or has had) an appointment with — the "her
+ * patients" set. Unlike the receptionist's clinic-wide searchPatients, this
+ * is scoped through the appointments relation so a doctor can never search
+ * up a patient she's never actually treated, even by exact phone/email match.
+ */
+export async function searchMyPatients(clinicId: string, doctorId: string, query: string) {
+  const q = query.trim();
+  if (!q) return [];
+
+  return prisma.patient.findMany({
+    where: {
+      clinicId,
+      appointments: { some: { doctorId } },
+      OR: [
+        { phone: { contains: q, mode: "insensitive" } },
+        { email: { contains: q, mode: "insensitive" } },
+        { name: { contains: q, mode: "insensitive" } },
+      ],
+    },
+    orderBy: { createdAt: "desc" },
+    take: 10,
+  });
 }
 
 /**

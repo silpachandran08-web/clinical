@@ -12,9 +12,9 @@ import {
   listAppointmentDayCounts,
   listDayAppointments,
   listMyQueue,
+  searchMyPatients,
   shiftMonthParam,
 } from "@/src/doctorHandlers";
-import { searchPatients } from "@/src/receptionistHandlers";
 import { startOfDayInTimezone } from "@/src/scheduling/timezone";
 import { completeConsultationAction, startConsultationAction, startNextConsultationAction } from "@/lib/actions/doctor";
 import { PrescriptionBuilder } from "./PrescriptionBuilder";
@@ -52,7 +52,7 @@ export default async function DoctorQueuePage({
   const [queue, completedToday, searchResults, dayCounts, dayAppointments] = await Promise.all([
     listMyQueue(session.clinicId, session.doctorId, clinic.timezone),
     countCompletedToday(session.clinicId, session.doctorId, clinic.timezone),
-    q ? searchPatients(session.clinicId, q) : Promise.resolve([]),
+    q ? searchMyPatients(session.clinicId, session.doctorId, q) : Promise.resolve([]),
     listAppointmentDayCounts(session.clinicId, session.doctorId, monthStart, clinic.timezone),
     selectedDay
       ? listDayAppointments(session.clinicId, session.doctorId, selectedDay, clinic.timezone)

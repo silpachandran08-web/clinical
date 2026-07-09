@@ -313,6 +313,10 @@ textarea:disabled {
   width: auto;
 }
 
+.med-days {
+  width: 70px;
+}
+
 .med-remove {
   margin-left: auto;
 }

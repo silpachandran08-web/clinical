@@ -5,11 +5,12 @@ import { useState } from "react";
 interface MedicineRow {
   name: string;
   timing: string[];
+  days: string;
 }
 
 const TIMING_OPTIONS = ["Morning", "Afternoon", "Evening", "Night"];
 
-const emptyRow = (): MedicineRow => ({ name: "", timing: [] });
+const emptyRow = (): MedicineRow => ({ name: "", timing: [], days: "" });
 
 export function PrescriptionBuilder({ fieldName = "prescription" }: { fieldName?: string }) {
   const [rows, setRows] = useState<MedicineRow[]>([emptyRow()]);
@@ -37,13 +38,21 @@ export function PrescriptionBuilder({ fieldName = "prescription" }: { fieldName?
     );
   }
 
+  function updateDays(index: number, value: string) {
+    setRows((prev) => prev.map((row, i) => (i === index ? { ...row, days: value } : row)));
+  }
+
   function removeRow(index: number) {
     setRows((prev) => prev.filter((_, i) => i !== index));
   }
 
   const composed = rows
     .filter((r) => r.name.trim())
-    .map((r) => (r.timing.length ? `${r.name.trim()} (${r.timing.join(", ")})` : r.name.trim()))
+    .map((r) => {
+      const detail = [...r.timing];
+      if (r.days.trim()) detail.push(`${r.days.trim()} day${r.days.trim() === "1" ? "" : "s"}`);
+      return detail.length ? `${r.name.trim()} (${detail.join(", ")})` : r.name.trim();
+    })
     .join("; ");
 
   return (
@@ -71,6 +80,14 @@ export function PrescriptionBuilder({ fieldName = "prescription" }: { fieldName?
                   </label>
                 ))}
               </div>
+              <input
+                type="number"
+                min={1}
+                placeholder="Days"
+                className="med-days"
+                value={row.days}
+                onChange={(e) => updateDays(i, e.target.value)}
+              />
               {!isLastEmptyRow && (
                 <button type="button" className="secondary med-remove" onClick={() => removeRow(i)}>
                   Remove

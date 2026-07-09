@@ -61,6 +61,6 @@ export async function updatePatientDetailsAction(formData: FormData) {
     medicalNotes: String(formData.get("medicalNotes") ?? "") || undefined,
   });
 
-  await updatePatientDetails(session.clinicId, patientId, payload);
+  await updatePatientDetails(session.clinicId, session.doctorId, patientId, payload);
   revalidatePath(`/doctor/patients/${patientId}`);
 }

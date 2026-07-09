@@ -14,10 +14,14 @@ export default async function PatientHistoryPage({
   params: Promise<{ patientId: string }>;
 }) {
   const session = await getSession();
-  if (!session || session.role !== "DOCTOR") redirect("/login");
+  if (!session || session.role !== "DOCTOR" || !session.doctorId) redirect("/login");
 
   const { patientId } = await params;
-  const patient = await prisma.patient.findFirst({ where: { id: patientId, clinicId: session.clinicId } });
+  // Scoped through the appointments relation, not just clinicId — a doctor
+  // can only open patients she's actually treated, never a colleague's.
+  const patient = await prisma.patient.findFirst({
+    where: { id: patientId, clinicId: session.clinicId, appointments: { some: { doctorId: session.doctorId } } },
+  });
   if (!patient) redirect("/doctor");
 
   const clinic = await getClinic(session.clinicId);
