@@ -1,12 +1,14 @@
 import Link from "next/link";
 import {
   BellRepeatIcon,
+  BoltIcon,
   CalendarGridIcon,
   ChartIcon,
   ChatIcon,
   CheckIcon,
   DesktopIcon,
   PhoneIcon,
+  PulseIcon,
   StethoscopeIcon,
 } from "./LandingIcons";
 
@@ -67,7 +69,7 @@ export default function LandingPage() {
     <div className="landing">
       <nav className="landing-nav">
         <div className="landing-nav-inner">
-          <span className="landing-brand">Clinic WhatsApp Assistant</span>
+          <span className="landing-brand">ClinicBook Assistant</span>
           <div className="landing-nav-links">
             <a href="#features">Features</a>
             <a href="#why-us">Why us</a>
@@ -116,6 +118,9 @@ export default function LandingPage() {
           </div>
 
           <div className="landing-hero-visual">
+            <div className="landing-hero-orbit outer" aria-hidden="true" />
+            <div className="landing-hero-orbit inner" aria-hidden="true" />
+
             <div className="phone-mock">
               <div className="phone-mock-notch" />
               <div className="phone-mock-header">
@@ -135,6 +140,25 @@ export default function LandingPage() {
                     {m.text}
                   </div>
                 ))}
+              </div>
+            </div>
+
+            <div className="landing-float-card landing-float-card-a">
+              <div className="landing-float-card-icon">
+                <BoltIcon size={16} />
+              </div>
+              <div>
+                Booked in seconds
+                <span className="landing-float-card-sub">AI confirms instantly</span>
+              </div>
+            </div>
+            <div className="landing-float-card landing-float-card-b">
+              <div className="landing-float-card-icon">
+                <PulseIcon size={16} />
+              </div>
+              <div>
+                Doctor &amp; front desk in sync
+                <span className="landing-float-card-sub">Live, every check-in</span>
               </div>
             </div>
           </div>
@@ -282,7 +306,7 @@ export default function LandingPage() {
 
       <footer className="landing-footer">
         <div className="landing-section-inner landing-footer-inner">
-          <span className="landing-brand">Clinic WhatsApp Assistant</span>
+          <span className="landing-brand">ClinicBook Assistant</span>
           <div className="landing-footer-links">
             <a href="#features">Features</a>
             <a href="#why-us">Why us</a>
@@ -290,7 +314,7 @@ export default function LandingPage() {
             <Link href="/login">Login</Link>
             <Link href="/register">Register Clinic</Link>
           </div>
-          <span className="muted">© {new Date().getFullYear()} Clinic WhatsApp Assistant</span>
+          <span className="muted">© {new Date().getFullYear()} ClinicBook Assistant</span>
         </div>
       </footer>
     </div>

@@ -1,4 +1,4 @@
-// Clinic WhatsApp Assistant — scheduling core
+// ClinicBook Assistant — scheduling core
 // Multi-tenant from day one: every table hangs off Clinic so onboarding
 // clinic #2 is a config row + adapter choice, not a schema change.
 

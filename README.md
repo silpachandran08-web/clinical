@@ -1,4 +1,4 @@
-# Clinic WhatsApp Assistant
+# ClinicBook Assistant
 
 A multi-tenant SaaS product: clinics register themselves, get a 7-day free
 trial, and run their booking operation through three role-scoped
