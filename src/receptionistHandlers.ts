@@ -72,8 +72,9 @@ export async function listDoctorsStatusForDay(clinicId: string, date: Date) {
     orderBy: { name: "asc" },
   });
 
+  const now = new Date();
   return doctors.map((d) => {
-    const openSlots = d.slots.filter((s) => s.status === "OPEN");
+    const openSlots = d.slots.filter((s) => s.status === "OPEN" && s.startsAt > now);
     return {
       id: d.id,
       name: d.name,

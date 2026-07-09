@@ -57,7 +57,11 @@ export function WeekSlotPicker({
               </span>
             ) : (
               day.slots.map((slot) =>
-                slot.status === "OPEN" && !slot.isPast ? (
+                slot.isPast ? (
+                  <span key={slot.id} className="slot-btn past">
+                    {slot.time}
+                  </span>
+                ) : slot.status === "OPEN" ? (
                   <button
                     key={slot.id}
                     type="button"
@@ -67,7 +71,7 @@ export function WeekSlotPicker({
                     {slot.time}
                   </button>
                 ) : (
-                  <span key={slot.id} className={`slot-btn ${slot.status === "OPEN" ? "past" : "booked"}`}>
+                  <span key={slot.id} className="slot-btn booked">
                     {slot.time}
                   </span>
                 ),

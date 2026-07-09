@@ -182,10 +182,13 @@ export default async function ReceptionistPage({
                     ) : d.openSlots.length === 0 ? (
                       <span className="badge danger">Fully booked</span>
                     ) : (
-                      <span className="badge success">
-                        {d.openSlots.length} open · next{" "}
-                        {d.openSlots[0].startsAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                      </span>
+                      <div>
+                        <span className="badge success">{d.openSlots.length} open slots</span>
+                        <div className="muted" style={{ fontSize: 11.5, marginTop: 4 }}>
+                          Next available{" "}
+                          {d.openSlots[0].startsAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        </div>
+                      </div>
                     )}
                   </td>
                 </tr>
