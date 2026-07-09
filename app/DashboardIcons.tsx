@@ -95,3 +95,13 @@ export function SyringeIcon({ size = 18 }: IconProps) {
     </svg>
   );
 }
+
+export function PrinterIcon({ size = 18 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...base}>
+      <path d="M6 9V4h12v5" />
+      <rect x="4" y="9" width="16" height="8" rx="1.5" />
+      <path d="M6 14h12v6H6z" />
+    </svg>
+  );
+}

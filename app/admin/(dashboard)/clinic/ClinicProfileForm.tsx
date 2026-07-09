@@ -28,6 +28,12 @@ export function ClinicProfileForm({ clinic }: { clinic: Clinic }) {
             <span className="muted">WhatsApp number:</span> {clinic.whatsappNumber ?? "—"}
           </p>
           <p style={{ margin: 0 }}>
+            <span className="muted">Address:</span> {clinic.address ?? "—"}
+          </p>
+          <p style={{ margin: 0 }}>
+            <span className="muted">Phone:</span> {clinic.phone ?? "—"}
+          </p>
+          <p style={{ margin: 0 }}>
             <span className="muted">Timezone:</span> {clinic.timezone}
           </p>
           <p style={{ margin: 0 }}>
@@ -50,6 +56,14 @@ export function ClinicProfileForm({ clinic }: { clinic: Clinic }) {
       <label>
         WhatsApp number (clean E.164, e.g. +15551234567)
         <input name="whatsappNumber" defaultValue={clinic.whatsappNumber ?? ""} autoComplete="off" required />
+      </label>
+      <label>
+        Address (shown on printed prescriptions)
+        <input name="address" defaultValue={clinic.address ?? ""} placeholder="e.g. King Fahd Rd, Riyadh" />
+      </label>
+      <label>
+        Phone (shown on printed prescriptions)
+        <input name="phone" defaultValue={clinic.phone ?? ""} placeholder="e.g. +966 11 234 5678" />
       </label>
       <label>
         Timezone

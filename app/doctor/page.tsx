@@ -5,12 +5,17 @@ import { getClinic } from "@/src/adminHandlers";
 import {
   calculateAge,
   countCompletedToday,
+  formatDayParam,
+  formatMonthParam,
+  getDayParam,
   getMonthStart,
   listAppointmentDayCounts,
+  listDayAppointments,
   listMyQueue,
   shiftMonthParam,
 } from "@/src/doctorHandlers";
 import { searchPatients } from "@/src/receptionistHandlers";
+import { startOfDayInTimezone } from "@/src/scheduling/timezone";
 import { completeConsultationAction, startConsultationAction, startNextConsultationAction } from "@/lib/actions/doctor";
 import { PrescriptionBuilder } from "./PrescriptionBuilder";
 import { AdministeredTreatmentBuilder } from "./AdministeredTreatmentBuilder";
@@ -21,6 +26,7 @@ import {
   CheckCircleIcon,
   ClockIcon,
   PatientIcon,
+  PrinterIcon,
   ScaleIcon,
   SearchIcon,
   StethoscopeIcon,
@@ -30,7 +36,7 @@ import {
 export default async function DoctorQueuePage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; month?: string }>;
+  searchParams: Promise<{ q?: string; month?: string; day?: string; justCompleted?: string }>;
 }) {
   const session = await getSession();
   if (!session || session.role !== "DOCTOR" || !session.doctorId) redirect("/login");
@@ -40,12 +46,17 @@ export default async function DoctorQueuePage({
 
   const clinic = await getClinic(session.clinicId);
   const monthStart = getMonthStart(params.month, clinic.timezone);
+  const selectedDay = params.day ? getDayParam(params.day, clinic.timezone) : null;
+  const isPastDay = selectedDay ? selectedDay.getTime() < startOfDayInTimezone(new Date(), clinic.timezone).getTime() : false;
 
-  const [queue, completedToday, searchResults, dayCounts] = await Promise.all([
+  const [queue, completedToday, searchResults, dayCounts, dayAppointments] = await Promise.all([
     listMyQueue(session.clinicId, session.doctorId, clinic.timezone),
     countCompletedToday(session.clinicId, session.doctorId, clinic.timezone),
     q ? searchPatients(session.clinicId, q) : Promise.resolve([]),
     listAppointmentDayCounts(session.clinicId, session.doctorId, monthStart, clinic.timezone),
+    selectedDay
+      ? listDayAppointments(session.clinicId, session.doctorId, selectedDay, clinic.timezone)
+      : Promise.resolve([]),
   ]);
 
   const waiting = queue.filter((a) => a.status === "CHECKED_IN");
@@ -93,6 +104,17 @@ export default async function DoctorQueuePage({
 
       <div className="dashboard-layout">
         <div className="dashboard-main">
+          {params.justCompleted && (
+            <div className="card" style={{ borderColor: "var(--success)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+              <p style={{ margin: 0, color: "var(--success)" }} className="card-title-icon">
+                <CheckCircleIcon size={16} /> Visit completed.
+              </p>
+              <a className="btn-link" href={`/doctor/consultations/${params.justCompleted}/print`} target="_blank" rel="noreferrer">
+                <PrinterIcon size={15} /> Print prescription
+              </a>
+            </div>
+          )}
+
           {current && (
             <div className="card" style={{ borderColor: "var(--accent)" }}>
               <h2 className="card-title-icon">
@@ -205,8 +227,71 @@ export default async function DoctorQueuePage({
               timeZone={clinic.timezone}
               prevMonthHref={`/doctor?month=${shiftMonthParam(monthStart, -1, clinic.timezone)}`}
               nextMonthHref={`/doctor?month=${shiftMonthParam(monthStart, 1, clinic.timezone)}`}
+              dayHref={(key) => `/doctor?month=${formatMonthParam(monthStart, clinic.timezone)}&day=${key}`}
+              selectedDayKey={params.day}
             />
           </div>
+
+          {selectedDay && (
+            <div className="card">
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                <h2 className="card-title-icon" style={{ margin: 0 }}>
+                  <CalendarIcon />
+                  {isPastDay ? "Visited" : "Scheduled"} —{" "}
+                  {selectedDay.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", timeZone: clinic.timezone })}
+                </h2>
+                <a href={`/doctor?month=${formatMonthParam(monthStart, clinic.timezone)}`} className="muted" style={{ fontSize: 12.5 }}>
+                  ✕ Clear
+                </a>
+              </div>
+              {dayAppointments.length === 0 ? (
+                <p className="empty-state">
+                  {isPastDay ? "No appointments on this day." : "No appointments scheduled."}
+                </p>
+              ) : (
+                <div className="schedule-list">
+                  {dayAppointments.map((a) => (
+                    <div className="schedule-row" key={a.id}>
+                      <div className="schedule-row-header">
+                        <div className="schedule-time-patient">
+                          <span className="schedule-time">
+                            {a.slot.startsAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", timeZone: clinic.timezone })}
+                          </span>
+                          <span className="schedule-patient">
+                            <PatientIcon size={14} />
+                            <Link href={`/doctor/patients/${a.patient.id}`}>{a.patient.name ?? a.patient.phone}</Link>
+                          </span>
+                        </div>
+                        <div className="schedule-status">
+                          <span
+                            className={`badge ${
+                              a.status === "CANCELLED" || a.status === "NO_SHOW"
+                                ? "danger"
+                                : a.status === "COMPLETED"
+                                  ? "success"
+                                  : ""
+                            }`}
+                          >
+                            {a.status}
+                          </span>
+                          {a.status === "COMPLETED" && a.consultation && (
+                            <a
+                              className="btn-link"
+                              href={`/doctor/consultations/${a.consultation.id}/print`}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              <PrinterIcon size={13} /> Print
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="card">
             <h2 className="card-title-icon">

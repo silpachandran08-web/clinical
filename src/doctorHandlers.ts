@@ -3,6 +3,8 @@ import { Gender } from "@prisma/client";
 import { prisma } from "./db/client";
 import { getDatePartsInTimezone, startOfDayInTimezone, zonedTimeToUtc } from "./scheduling/timezone";
 
+export { getDayParam, formatDayParam } from "./receptionistHandlers";
+
 /**
  * All functions here take both clinicId AND doctorId and check both on every
  * query/update — a doctor must only ever see or touch their own patients,
@@ -97,7 +99,7 @@ export async function completeConsultation(
     ? new Date(Date.now() + input.followUpDays * 24 * 60 * 60 * 1000)
     : undefined;
 
-  await prisma.$transaction([
+  const [consultation] = await prisma.$transaction([
     prisma.consultation.create({
       data: {
         appointmentId,
@@ -112,6 +114,7 @@ export async function completeConsultation(
     }),
     prisma.appointment.update({ where: { id: appointmentId }, data: { status: "COMPLETED" } }),
   ]);
+  return consultation;
 }
 
 /** Doctor enters current age; we store the birth year so age is always re-derived correctly on later visits. */
@@ -210,4 +213,51 @@ export async function listAppointmentDayCounts(
     counts[key] = (counts[key] ?? 0) + 1;
   }
   return counts;
+}
+
+/**
+ * This doctor's appointments on one calendar day (clinic-local), any status —
+ * powers the "click a day on the calendar" list. Whether that list reads as
+ * "scheduled" or "visited" to the doctor is just copy the caller chooses
+ * based on whether the day is in the past; the query itself doesn't filter
+ * by status so a past day still shows no-shows/cancellations, not just
+ * completed visits.
+ */
+export async function listDayAppointments(clinicId: string, doctorId: string, dayStart: Date, timeZone: string) {
+  const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+  return prisma.appointment.findMany({
+    where: {
+      clinicId,
+      doctorId,
+      slot: { startsAt: { gte: dayStart, lt: dayEnd } },
+    },
+    include: { patient: true, slot: true, consultation: { select: { id: true } } },
+    orderBy: { slot: { startsAt: "asc" } },
+  });
+}
+
+/** One completed visit's full detail for the printable prescription — scoped to this doctor at this clinic, same tenant-isolation convention as everything else in this file. */
+export async function getConsultationForPrint(clinicId: string, doctorId: string, consultationId: string) {
+  return prisma.consultation.findFirst({
+    where: { id: consultationId, doctorId, doctor: { clinicId } },
+    include: { patient: true, doctor: { include: { department: true, clinic: true } } },
+  });
+}
+
+/**
+ * Splits the "Name (detail); Name2 (detail2)" string both PrescriptionBuilder
+ * and AdministeredTreatmentBuilder compose into structured rows for the
+ * printout — detail is optional (a medicine entered with no timing selected
+ * has no parentheses at all).
+ */
+export function parseMedicineList(raw: string | null | undefined): { name: string; detail: string }[] {
+  if (!raw) return [];
+  return raw
+    .split(";")
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .map((entry) => {
+      const match = /^(.*?)\s*\(([^)]*)\)$/.exec(entry);
+      return match ? { name: match[1].trim(), detail: match[2].trim() } : { name: entry, detail: "" };
+    });
 }

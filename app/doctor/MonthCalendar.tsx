@@ -9,10 +9,10 @@ function dateKey(date: Date, timeZone: string): string {
 }
 
 /**
- * Read-only month-at-a-glance grid — server-rendered, no client JS. A dot
- * marks days with at least one appointment; navigation is plain links
- * (?month=YYYY-MM), same URL-param-driven pattern as the receptionist's
- * day/week nav.
+ * Month-at-a-glance grid — server-rendered, no client JS. A dot marks days
+ * with at least one appointment; both month navigation (?month=YYYY-MM) and
+ * day selection (?day=YYYY-MM-DD, via dayHref) are plain links, same
+ * URL-param-driven pattern as the receptionist's day/week nav.
  */
 export function MonthCalendar({
   monthStart,
@@ -21,6 +21,8 @@ export function MonthCalendar({
   timeZone,
   prevMonthHref,
   nextMonthHref,
+  dayHref,
+  selectedDayKey,
 }: {
   monthStart: Date;
   today: Date;
@@ -28,6 +30,8 @@ export function MonthCalendar({
   timeZone: string;
   prevMonthHref: string;
   nextMonthHref: string;
+  dayHref: (key: string) => string;
+  selectedDayKey?: string;
 }) {
   const { year, month } = getDatePartsInTimezone(monthStart, timeZone);
   const firstWeekday = new Date(Date.UTC(year, month - 1, 1)).getUTCDay(); // day-of-week is a pure calendar-date function, timezone-irrelevant
@@ -56,15 +60,23 @@ export function MonthCalendar({
             {d}
           </div>
         ))}
-        {cells.map((cell) => (
-          <div
-            key={cell.key}
-            className={`month-calendar-day ${cell.isOutside ? "outside" : ""} ${cell.key === todayKey ? "today" : ""}`}
-          >
-            <span>{cell.day}</span>
-            {(dayCounts[cell.key] ?? 0) > 0 && <span className="month-calendar-dot" />}
-          </div>
-        ))}
+        {cells.map((cell) => {
+          const classes = `month-calendar-day ${cell.isOutside ? "outside" : ""} ${
+            cell.key === todayKey ? "today" : ""
+          } ${cell.key === selectedDayKey ? "selected" : ""}`;
+          const dot = (dayCounts[cell.key] ?? 0) > 0 && <span className="month-calendar-dot" />;
+          return cell.isOutside ? (
+            <div key={cell.key} className={classes}>
+              <span>{cell.day}</span>
+              {dot}
+            </div>
+          ) : (
+            <a key={cell.key} href={dayHref(cell.key)} className={classes}>
+              <span>{cell.day}</span>
+              {dot}
+            </a>
+          );
+        })}
       </div>
     </div>
   );

@@ -11,6 +11,8 @@ export async function saveClinicAction(formData: FormData) {
   const payload = updateClinicSchema.parse({
     name: String(formData.get("name") ?? ""),
     whatsappNumber: String(formData.get("whatsappNumber") ?? ""),
+    address: String(formData.get("address") ?? "") || undefined,
+    phone: String(formData.get("phone") ?? "") || undefined,
     timezone: String(formData.get("timezone") ?? "") || undefined,
     defaultLocale: (String(formData.get("defaultLocale") ?? "") || undefined) as "AR" | "EN" | undefined,
   });

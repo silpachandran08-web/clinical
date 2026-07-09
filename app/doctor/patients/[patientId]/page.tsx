@@ -6,7 +6,7 @@ import { calculateAge, listPatientHistory } from "@/src/doctorHandlers";
 import { prisma } from "@/src/db/client";
 import { PatientDetailsForm } from "./PatientDetailsForm";
 import { WeightChart } from "./WeightChart";
-import { ScaleIcon } from "../../../DashboardIcons";
+import { PrinterIcon, ScaleIcon } from "../../../DashboardIcons";
 
 export default async function PatientHistoryPage({
   params,
@@ -71,6 +71,7 @@ export default async function PatientHistoryPage({
                 <th>Prescription</th>
                 <th>Administered</th>
                 <th>Follow-up</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -83,6 +84,15 @@ export default async function PatientHistoryPage({
                   <td>{c.prescription ?? "—"}</td>
                   <td>{c.administeredTreatment ?? "—"}</td>
                   <td>{c.followUpDate ? c.followUpDate.toLocaleDateString(undefined, { timeZone: clinic.timezone }) : "—"}</td>
+                  <td>
+                    {c.prescription || c.administeredTreatment ? (
+                      <a className="btn-link" href={`/doctor/consultations/${c.id}/print`} target="_blank" rel="noreferrer">
+                        <PrinterIcon size={13} /> Print
+                      </a>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

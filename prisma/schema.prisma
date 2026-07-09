@@ -91,6 +91,8 @@ enum TransactionType {
 model Clinic {
   id                 String             @id @default(cuid())
   name               String
+  address            String?            // shown on printed prescriptions alongside the clinic name
+  phone              String?            // shown on printed prescriptions alongside the clinic name
   timezone           String             @default("Asia/Riyadh")
   defaultLocale      Locale             @default(AR)
   whatsappNumber     String?            @unique // null until the clinic configures WhatsApp

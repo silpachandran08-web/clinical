@@ -46,9 +46,9 @@ export async function completeConsultationAction(formData: FormData) {
     followUpDays: String(formData.get("followUpDays") ?? "") || undefined,
   });
 
-  await completeConsultation(session.clinicId, session.doctorId, appointmentId, payload);
+  const consultation = await completeConsultation(session.clinicId, session.doctorId, appointmentId, payload);
   revalidatePath("/doctor");
-  redirect("/doctor");
+  redirect(`/doctor?justCompleted=${consultation.id}`);
 }
 
 export async function updatePatientDetailsAction(formData: FormData) {
