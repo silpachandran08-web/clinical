@@ -1,45 +1,46 @@
 import { z } from "zod";
 import { prisma } from "./db/client";
 import * as bookingService from "./scheduling/bookingService";
+import { getDatePartsInTimezone, startOfDayInTimezone, zonedTimeToUtc } from "./scheduling/timezone";
 
-function startOfToday(): Date {
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-  return start;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** "Today"/"tomorrow" as observed in the clinic's own timezone, not the server's (see src/scheduling/timezone.ts). */
+function startOfToday(timeZone: string): Date {
+  return startOfDayInTimezone(new Date(), timeZone);
 }
 
-function startOfTomorrow(): Date {
-  const start = startOfToday();
-  start.setDate(start.getDate() + 1);
-  return start;
+function startOfTomorrow(timeZone: string): Date {
+  return new Date(startOfToday(timeZone).getTime() + DAY_MS);
 }
 
-export async function listTodayAppointments(clinicId: string) {
+export async function listTodayAppointments(clinicId: string, timeZone: string) {
   return prisma.appointment.findMany({
-    where: { clinicId, slot: { startsAt: { gte: startOfToday(), lt: startOfTomorrow() } } },
+    where: { clinicId, slot: { startsAt: { gte: startOfToday(timeZone), lt: startOfTomorrow(timeZone) } } },
     include: { doctor: true, patient: true, slot: true },
     orderBy: { slot: { startsAt: "asc" } },
   });
 }
 
-/** Local "YYYY-MM-DD", not UTC — toISOString() would roll back a day for any timezone ahead of UTC (e.g. Riyadh, UTC+3). */
-function formatLocalDate(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
+/** "YYYY-MM-DD" as observed in the clinic's timezone — used for building/parsing URL params, never UTC (which would roll back a day for any timezone ahead of UTC, e.g. Riyadh, UTC+3). */
+function formatLocalDate(date: Date, timeZone: string): string {
+  const { year, month, day } = getDatePartsInTimezone(date, timeZone);
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
-/** ISO "YYYY-MM-DD" -> midnight local Date, or today if missing/invalid. */
-export function getDayParam(param?: string): Date {
-  const day = param ? new Date(`${param}T00:00:00`) : new Date();
-  const start = isNaN(day.getTime()) ? new Date() : day;
-  start.setHours(0, 0, 0, 0);
-  return start;
+/** ISO "YYYY-MM-DD" -> midnight in the clinic's timezone, or today if missing/invalid. */
+export function getDayParam(param: string | undefined, timeZone: string): Date {
+  if (param) {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(param);
+    if (match) {
+      return zonedTimeToUtc(Number(match[1]), Number(match[2]), Number(match[3]), 0, 0, timeZone);
+    }
+  }
+  return startOfToday(timeZone);
 }
 
-export function formatDayParam(date: Date): string {
-  return formatLocalDate(date);
+export function formatDayParam(date: Date, timeZone: string): string {
+  return formatLocalDate(date, timeZone);
 }
 
 /**
@@ -49,9 +50,8 @@ export function formatDayParam(date: Date): string {
  * see availability before starting the booking flow at all.
  */
 export async function listDoctorsStatusForDay(clinicId: string, date: Date) {
-  const dayStart = new Date(date);
-  const dayEnd = new Date(dayStart);
-  dayEnd.setDate(dayEnd.getDate() + 1);
+  const dayStart = date;
+  const dayEnd = new Date(dayStart.getTime() + DAY_MS);
 
   const doctors = await prisma.doctor.findMany({
     where: { clinicId, active: true },
@@ -96,22 +96,16 @@ export async function checkInAppointment(clinicId: string, appointmentId: string
   }
 }
 
-/** Sunday of the week containing `param` (an ISO "YYYY-MM-DD" date), or of the current week if omitted/invalid. */
-export function getWeekStart(param?: string): Date {
-  let start: Date;
-  if (param) {
-    const parsed = new Date(`${param}T00:00:00`);
-    start = isNaN(parsed.getTime()) ? new Date() : parsed;
-  } else {
-    start = new Date();
-  }
-  start.setHours(0, 0, 0, 0);
-  start.setDate(start.getDate() - start.getDay());
-  return start;
+/** Sunday of the week containing `param` (an ISO "YYYY-MM-DD" date), or of the current week if omitted/invalid — all in the clinic's timezone. */
+export function getWeekStart(param: string | undefined, timeZone: string): Date {
+  const day = getDayParam(param, timeZone);
+  const dayOfWeek = getDatePartsInTimezone(day, timeZone);
+  const weekday = new Date(Date.UTC(dayOfWeek.year, dayOfWeek.month - 1, dayOfWeek.day)).getUTCDay();
+  return new Date(day.getTime() - weekday * DAY_MS);
 }
 
-export function formatWeekParam(date: Date): string {
-  return formatLocalDate(date);
+export function formatWeekParam(date: Date, timeZone: string): string {
+  return formatLocalDate(date, timeZone);
 }
 
 export interface WeekDay {
@@ -125,8 +119,7 @@ export interface WeekDay {
  * taken — instead of just a flat list of what's still free.
  */
 export async function listWeekSlots(clinicId: string, doctorId: string, weekStart: Date): Promise<WeekDay[]> {
-  const weekEnd = new Date(weekStart);
-  weekEnd.setDate(weekEnd.getDate() + 7);
+  const weekEnd = new Date(weekStart.getTime() + 7 * DAY_MS);
 
   const slots = await prisma.slot.findMany({
     where: { doctorId, doctor: { clinicId }, startsAt: { gte: weekStart, lt: weekEnd } },
@@ -136,10 +129,8 @@ export async function listWeekSlots(clinicId: string, doctorId: string, weekStar
 
   const days: WeekDay[] = [];
   for (let i = 0; i < 7; i++) {
-    const date = new Date(weekStart);
-    date.setDate(date.getDate() + i);
-    const dayEnd = new Date(date);
-    dayEnd.setDate(dayEnd.getDate() + 1);
+    const date = new Date(weekStart.getTime() + i * DAY_MS);
+    const dayEnd = new Date(date.getTime() + DAY_MS);
     days.push({
       date,
       slots: slots.filter((s) => s.startsAt >= date && s.startsAt < dayEnd),

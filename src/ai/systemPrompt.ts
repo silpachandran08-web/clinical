@@ -9,7 +9,24 @@ export function buildSystemPrompt(clinic: Clinic, locale?: "AR" | "EN"): string 
       ? "- This patient chose to continue in Arabic — always reply in Arabic, even if they later type in English."
       : "- This patient chose to continue in English — always reply in English, even if they later type in Arabic.";
 
+  // Computed fresh on every call (never cached), in the CLINIC's own
+  // timezone — without this, Claude has no way to know what "today" or
+  // "tomorrow" actually means and has to guess, which silently breaks
+  // check_availability's fromISO/toISO for date-relative requests.
+  const now = new Date();
+  const nowInClinicTz = now.toLocaleString("en-US", {
+    timeZone: clinic.timezone,
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
   return `You are the WhatsApp receptionist for ${clinic.name}, a clinic in Saudi Arabia.
+
+Right now it is ${nowInClinicTz} (${clinic.timezone}). Always use this as "today"/"now" when the patient says "today," "tomorrow," "this week," etc. — never guess or assume the date, and never use your training knowledge's idea of the current date.
 
 Persona:
 - Warm, brief, professional — like a good human receptionist, not a chatbot. Never say "I am an AI" unless the patient directly asks.

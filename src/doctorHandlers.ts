@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { Gender } from "@prisma/client";
 import { prisma } from "./db/client";
+import { startOfDayInTimezone } from "./scheduling/timezone";
 
 /**
  * All functions here take both clinicId AND doctorId and check both on every
@@ -8,38 +9,36 @@ import { prisma } from "./db/client";
  * never another doctor's at the same clinic, let alone another clinic's.
  */
 
-function startOfToday(): Date {
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-  return start;
+/** "Today"/"tomorrow" as observed in the clinic's own timezone, not the server's (see src/scheduling/timezone.ts). */
+function startOfToday(timeZone: string): Date {
+  return startOfDayInTimezone(new Date(), timeZone);
 }
 
-function startOfTomorrow(): Date {
-  const start = startOfToday();
-  start.setDate(start.getDate() + 1);
-  return start;
+function startOfTomorrow(timeZone: string): Date {
+  const start = startOfToday(timeZone);
+  return new Date(start.getTime() + 24 * 60 * 60 * 1000);
 }
 
-export async function listMyQueue(clinicId: string, doctorId: string) {
+export async function listMyQueue(clinicId: string, doctorId: string, timeZone: string) {
   return prisma.appointment.findMany({
     where: {
       clinicId,
       doctorId,
       status: { in: ["CHECKED_IN", "IN_PROGRESS"] },
-      slot: { startsAt: { gte: startOfToday(), lt: startOfTomorrow() } },
+      slot: { startsAt: { gte: startOfToday(timeZone), lt: startOfTomorrow(timeZone) } },
     },
     include: { patient: true, slot: true },
     orderBy: { slot: { startsAt: "asc" } },
   });
 }
 
-export async function countCompletedToday(clinicId: string, doctorId: string) {
+export async function countCompletedToday(clinicId: string, doctorId: string, timeZone: string) {
   return prisma.appointment.count({
     where: {
       clinicId,
       doctorId,
       status: "COMPLETED",
-      slot: { startsAt: { gte: startOfToday(), lt: startOfTomorrow() } },
+      slot: { startsAt: { gte: startOfToday(timeZone), lt: startOfTomorrow(timeZone) } },
     },
   });
 }
@@ -56,12 +55,13 @@ export async function startConsultation(clinicId: string, doctorId: string, appo
 
 /** Starts the longest-waiting checked-in patient, so the doctor doesn't have to scan the list and pick one. */
 export async function startNextConsultation(clinicId: string, doctorId: string) {
+  const clinic = await prisma.clinic.findUniqueOrThrow({ where: { id: clinicId }, select: { timezone: true } });
   const next = await prisma.appointment.findFirst({
     where: {
       clinicId,
       doctorId,
       status: "CHECKED_IN",
-      slot: { startsAt: { gte: startOfToday(), lt: startOfTomorrow() } },
+      slot: { startsAt: { gte: startOfToday(clinic.timezone), lt: startOfTomorrow(clinic.timezone) } },
     },
     orderBy: { slot: { startsAt: "asc" } },
   });

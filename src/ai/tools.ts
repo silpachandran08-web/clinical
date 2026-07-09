@@ -3,6 +3,7 @@ import type { Clinic } from "@prisma/client";
 import { env } from "../config/env";
 import { getEhrAdapter } from "../integrations/index";
 import * as bookingService from "../scheduling/bookingService";
+import { zonedTimeToUtc } from "../scheduling/timezone";
 
 export const toolDefinitions: Anthropic.Tool[] = [
   {
@@ -23,8 +24,8 @@ export const toolDefinitions: Anthropic.Tool[] = [
       properties: {
         doctorId: { type: "string" },
         departmentName: { type: "string" },
-        fromISO: { type: "string", description: "ISO date to start searching from" },
-        toISO: { type: "string", description: "ISO date to search up to" },
+        fromISO: { type: "string", description: "Calendar date to start searching from, YYYY-MM-DD, in the clinic's own local date (use the 'today' date given at the top of these instructions, not UTC)" },
+        toISO: { type: "string", description: "Calendar date to search up to, YYYY-MM-DD, inclusive — for a single day (e.g. \"today\"), pass the same date as fromISO" },
       },
       required: ["fromISO", "toISO"],
     },
@@ -93,12 +94,22 @@ export async function runTool(name: string, input: any, ctx: ToolContext): Promi
     }
 
     case "check_availability": {
+      // fromISO/toISO are plain YYYY-MM-DD calendar dates in the clinic's
+      // own timezone (per the tool description) — new Date("2026-07-09")
+      // would parse that as UTC midnight, not clinic-local midnight, and a
+      // same-day query (fromISO === toISO, e.g. "today") would collapse to
+      // a zero-width range since the underlying query's upper bound is
+      // exclusive. Parse as clinic-local dates and make `to` inclusive of
+      // the whole toISO calendar day.
+      const from = parseClinicCalendarDate(input.fromISO, ctx.clinic.timezone);
+      const to = new Date(parseClinicCalendarDate(input.toISO, ctx.clinic.timezone).getTime() + 24 * 60 * 60 * 1000);
+
       const slots = await adapter.getAvailability({
         clinicId: ctx.clinic.id,
         doctorId: input.doctorId,
         departmentName: input.departmentName,
-        from: new Date(input.fromISO),
-        to: new Date(input.toISO),
+        from,
+        to,
       });
       return slots.map((s) => ({
         slotId: s.slotId,
@@ -154,4 +165,14 @@ export async function runTool(name: string, input: any, ctx: ToolContext): Promi
     default:
       throw new Error(`Unknown tool: ${name}`);
   }
+}
+
+/** Parses a "YYYY-MM-DD" (optionally with a trailing time component, which is ignored) as midnight of that calendar date in `timeZone`. */
+function parseClinicCalendarDate(dateStr: string, timeZone: string): Date {
+  const datePart = dateStr.split("T")[0];
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(datePart);
+  if (!match) {
+    throw new Error(`check_availability received an unparseable date: "${dateStr}"`);
+  }
+  return zonedTimeToUtc(Number(match[1]), Number(match[2]), Number(match[3]), 0, 0, timeZone);
 }

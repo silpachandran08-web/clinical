@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/session";
-import { listDoctors } from "@/src/adminHandlers";
+import { getClinic, listDoctors } from "@/src/adminHandlers";
 import {
   formatDayParam,
   formatWeekParam,
@@ -14,6 +14,8 @@ import {
 import { addPatientAction, checkInAction } from "@/lib/actions/receptionist";
 import { WeekSlotPicker } from "./WeekSlotPicker";
 import { AutoRefresh } from "../AutoRefresh";
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 type ReceptionistParams = {
   doctorId?: string;
@@ -60,17 +62,18 @@ export default async function ReceptionistPage({
 
   const params = await searchParams;
 
-  const today = getDayParam();
-  const statusDay = getDayParam(params.statusDay);
+  const clinic = await getClinic(session.clinicId);
+  const timeZone = clinic.timezone;
+
+  const today = getDayParam(undefined, timeZone);
+  const statusDay = getDayParam(params.statusDay, timeZone);
   const isToday = statusDay.getTime() === today.getTime();
-  const prevDay = new Date(statusDay);
-  prevDay.setDate(prevDay.getDate() - 1);
-  const nextDay = new Date(statusDay);
-  nextDay.setDate(nextDay.getDate() + 1);
+  const prevDay = new Date(statusDay.getTime() - DAY_MS);
+  const nextDay = new Date(statusDay.getTime() + DAY_MS);
   const canGoBackDay = statusDay > today;
 
   const [appointments, todayDoctorStatus, browsedDoctorStatus, allDoctors] = await Promise.all([
-    listTodayAppointments(session.clinicId),
+    listTodayAppointments(session.clinicId, timeZone),
     listDoctorsStatusForDay(session.clinicId, today),
     isToday ? Promise.resolve(null) : listDoctorsStatusForDay(session.clinicId, statusDay),
     listDoctors(session.clinicId),
@@ -80,12 +83,10 @@ export default async function ReceptionistPage({
   const activeDoctors = allDoctors.filter((d) => d.active);
   const selectedDoctorId = params.doctorId ?? "";
 
-  const weekStart = getWeekStart(params.week);
-  const prevWeekStart = new Date(weekStart);
-  prevWeekStart.setDate(prevWeekStart.getDate() - 7);
-  const nextWeekStart = new Date(weekStart);
-  nextWeekStart.setDate(nextWeekStart.getDate() + 7);
-  const thisWeekStart = getWeekStart();
+  const weekStart = getWeekStart(params.week, timeZone);
+  const prevWeekStart = new Date(weekStart.getTime() - 7 * DAY_MS);
+  const nextWeekStart = new Date(weekStart.getTime() + 7 * DAY_MS);
+  const thisWeekStart = getWeekStart(undefined, timeZone);
   const canGoBack = weekStart > thisWeekStart;
 
   const week = selectedDoctorId ? await listWeekSlots(session.clinicId, selectedDoctorId, weekStart) : [];
@@ -107,7 +108,13 @@ export default async function ReceptionistPage({
       <div className="page-header">
         <h1>Today</h1>
         <span className="date">
-          {now.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+          {now.toLocaleDateString(undefined, {
+            weekday: "long",
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+            timeZone,
+          })}
         </span>
       </div>
 
@@ -132,18 +139,18 @@ export default async function ReceptionistPage({
 
       <div className="card" id="doctor-availability">
         <div className="week-nav" style={{ marginTop: 0, marginBottom: 14 }}>
-          <a href={canGoBackDay ? dayNavQuery(params, formatDayParam(prevDay)) : undefined} style={!canGoBackDay ? { color: "var(--text-muted)", pointerEvents: "none" } : undefined}>
+          <a href={canGoBackDay ? dayNavQuery(params, formatDayParam(prevDay, timeZone)) : undefined} style={!canGoBackDay ? { color: "var(--text-muted)", pointerEvents: "none" } : undefined}>
             ← Previous day
           </a>
           <span className="range">
             {isToday
               ? "Today"
-              : statusDay.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}
+              : statusDay.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric", timeZone })}
           </span>
-          <a href={dayNavQuery(params, formatDayParam(nextDay))}>Next day →</a>
+          <a href={dayNavQuery(params, formatDayParam(nextDay, timeZone))}>Next day →</a>
         </div>
 
-        <h2>Doctor availability{isToday ? "" : ` — ${statusDay.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}`}</h2>
+        <h2>Doctor availability{isToday ? "" : ` — ${statusDay.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", timeZone })}`}</h2>
         {doctorStatus.length === 0 ? (
           <p className="empty-state">No active doctors yet.</p>
         ) : (
@@ -188,7 +195,11 @@ export default async function ReceptionistPage({
                         <span className="badge success">{d.openSlots.length} open slots</span>
                         <div className="muted" style={{ fontSize: 11.5, marginTop: 4 }}>
                           Next available{" "}
-                          {d.openSlots[0].startsAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                          {d.openSlots[0].startsAt.toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            timeZone,
+                          })}
                         </div>
                       </div>
                     )}
@@ -325,7 +336,7 @@ export default async function ReceptionistPage({
                             doctorId: selectedDoctorId,
                             patientName: selectedPatientName,
                             patientPhone: selectedPatientPhone,
-                            week: formatWeekParam(prevWeekStart),
+                            week: formatWeekParam(prevWeekStart, timeZone),
                           })
                         : undefined
                     }
@@ -335,11 +346,12 @@ export default async function ReceptionistPage({
                     ← Previous week
                   </a>
                   <span className="range">
-                    {weekStart.toLocaleDateString(undefined, { month: "short", day: "numeric" })} –{" "}
+                    {weekStart.toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone })} –{" "}
                     {nextWeekStart.toLocaleDateString(undefined, {
                       month: "short",
                       day: "numeric",
                       year: "numeric",
+                      timeZone,
                     })}
                   </span>
                   <a
@@ -347,7 +359,7 @@ export default async function ReceptionistPage({
                       doctorId: selectedDoctorId,
                       patientName: selectedPatientName,
                       patientPhone: selectedPatientPhone,
-                      week: formatWeekParam(nextWeekStart),
+                      week: formatWeekParam(nextWeekStart, timeZone),
                     })}
                   >
                     Next week →
@@ -374,12 +386,12 @@ export default async function ReceptionistPage({
                   patientName={selectedPatientName}
                   patientPhone={selectedPatientPhone}
                   days={week.map((day) => ({
-                    label: day.date.toLocaleDateString(undefined, { weekday: "short" }),
-                    sub: day.date.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+                    label: day.date.toLocaleDateString(undefined, { weekday: "short", timeZone }),
+                    sub: day.date.toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone }),
                     slots: day.slots.map((slot) => ({
                       id: slot.id,
                       status: slot.status,
-                      time: slot.startsAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                      time: slot.startsAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", timeZone }),
                       isPast: slot.startsAt.getTime() < now.getTime(),
                     })),
                   }))}
@@ -408,7 +420,7 @@ export default async function ReceptionistPage({
             <tbody>
               {appointments.map((a) => (
                 <tr key={a.id}>
-                  <td>{a.slot.startsAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</td>
+                  <td>{a.slot.startsAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", timeZone })}</td>
                   <td>
                     {a.patient.name ?? a.patient.phone}
                     {a.bookedByStaff && <span className="badge" style={{ marginLeft: 6 }}>walk-in</span>}

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getSession } from "@/lib/session";
+import { getClinic } from "@/src/adminHandlers";
 import { calculateAge, countCompletedToday, listMyQueue } from "@/src/doctorHandlers";
 import { searchPatients } from "@/src/receptionistHandlers";
 import { completeConsultationAction, startConsultationAction, startNextConsultationAction } from "@/lib/actions/doctor";
@@ -18,9 +19,10 @@ export default async function DoctorQueuePage({
   const params = await searchParams;
   const q = params.q ?? "";
 
+  const clinic = await getClinic(session.clinicId);
   const [queue, completedToday, searchResults] = await Promise.all([
-    listMyQueue(session.clinicId, session.doctorId),
-    countCompletedToday(session.clinicId, session.doctorId),
+    listMyQueue(session.clinicId, session.doctorId, clinic.timezone),
+    countCompletedToday(session.clinicId, session.doctorId, clinic.timezone),
     q ? searchPatients(session.clinicId, q) : Promise.resolve([]),
   ]);
 
@@ -39,7 +41,13 @@ export default async function DoctorQueuePage({
       <div className="page-header">
         <h1>Today&apos;s queue</h1>
         <span className="date">
-          {now.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+          {now.toLocaleDateString(undefined, {
+            weekday: "long",
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+            timeZone: clinic.timezone,
+          })}
         </span>
       </div>
 
@@ -111,7 +119,13 @@ export default async function DoctorQueuePage({
             {currentDemographics && <span className="muted"> ({currentDemographics})</span>}
           </h2>
           <p className="muted">
-            Slot {current.slot.startsAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} ·{" "}
+            Slot{" "}
+            {current.slot.startsAt.toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+              timeZone: clinic.timezone,
+            })}{" "}
+            ·{" "}
             <Link href={`/doctor/patients/${current.patient.id}`}>
               {currentDemographics ? "View patient history" : "Add patient details →"}
             </Link>
@@ -158,7 +172,13 @@ export default async function DoctorQueuePage({
             <tbody>
               {waiting.map((a, i) => (
                 <tr key={a.id}>
-                  <td>{a.slot.startsAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</td>
+                  <td>
+                    {a.slot.startsAt.toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      timeZone: clinic.timezone,
+                    })}
+                  </td>
                   <td>
                     {a.patient.name ?? a.patient.phone}
                     {i === 0 && <span className="badge" style={{ marginLeft: 6 }}>next up</span>}
