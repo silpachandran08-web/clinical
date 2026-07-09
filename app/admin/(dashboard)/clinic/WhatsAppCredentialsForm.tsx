@@ -26,6 +26,11 @@ export function WhatsAppCredentialsForm({
   }, []);
 
   function handleSubmit(formData: FormData) {
+    // Guards against any non-user-initiated submit (e.g. a password-manager
+    // extension auto-submitting after it fills a field) actually saving —
+    // only an explicit "Save changes" click, which only exists in edit mode,
+    // should ever get here.
+    if (!isEditing) return;
     startTransition(async () => {
       await saveWhatsAppCredentialsAction(formData);
       setIsEditing(false);
@@ -55,7 +60,12 @@ export function WhatsAppCredentialsForm({
           Access Token
           <input
             name="accessToken"
-            type="password"
+            type="text"
+            autoComplete="off"
+            autoCorrect="off"
+            spellCheck={false}
+            data-1p-ignore
+            data-lpignore="true"
             placeholder={hasAccessToken ? SAVED_PLACEHOLDER : "e.g. EAAG..."}
             disabled={!isEditing}
           />
@@ -64,7 +74,12 @@ export function WhatsAppCredentialsForm({
           App Secret
           <input
             name="appSecret"
-            type="password"
+            type="text"
+            autoComplete="off"
+            autoCorrect="off"
+            spellCheck={false}
+            data-1p-ignore
+            data-lpignore="true"
             placeholder={hasAppSecret ? SAVED_PLACEHOLDER : "From App settings → Basic"}
             disabled={!isEditing}
           />
