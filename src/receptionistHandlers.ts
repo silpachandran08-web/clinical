@@ -61,6 +61,7 @@ export async function listDoctorsStatusForDay(clinicId: string, date: Date) {
   const doctors = await prisma.doctor.findMany({
     where: { clinicId, active: true },
     include: {
+      department: true,
       appointments: {
         where: {
           slot: { startsAt: { gte: dayStart, lt: dayEnd } },
@@ -89,6 +90,7 @@ export async function listDoctorsStatusForDay(clinicId: string, date: Date) {
     return {
       id: d.id,
       name: d.name,
+      department: d.department,
       isLive,
       inProgressWith: d.appointments.find((a) => a.status === "IN_PROGRESS") ?? null,
       waiting: d.appointments.filter((a) => a.status === "CHECKED_IN"),
