@@ -18,6 +18,10 @@ interface OverviewTabProps {
   timeZone: string;
 }
 
+interface DoctorGroup {
+  [deptName: string]: Array<any>;
+}
+
 export function OverviewTab({
   clinic,
   todayDoctorStatus,
@@ -27,7 +31,44 @@ export function OverviewTab({
 }: OverviewTabProps) {
   const waitingCount = todayDoctorStatus.reduce((sum, d) => sum + d.waiting.length, 0);
   const inProgressCount = todayDoctorStatus.filter((d) => d.inProgressWith).length;
-  const availableDoctors = todayDoctorStatus.filter((d) => d.isLive);
+
+  // Group doctors by department
+  const doctorsByDept: DoctorGroup = todayDoctorStatus.reduce((acc, doc) => {
+    const dept = doc.department?.name || "Other";
+    if (!acc[dept]) acc[dept] = [];
+    acc[dept].push(doc);
+    return acc;
+  }, {});
+
+  const sortedDepts = Object.keys(doctorsByDept).sort();
+
+  const getDocStatus = (doc: any) => {
+    if (!doc.isLive) {
+      return { label: "Not working", color: "var(--text-muted)", bgColor: "var(--surface-2)" };
+    }
+
+    if (doc.inProgressWith) {
+      return {
+        label: `With ${doc.inProgressWith.patient.name ?? doc.inProgressWith.patient.phone}`,
+        color: "var(--accent)",
+        bgColor: "var(--accent-soft)",
+      };
+    }
+
+    if (doc.totalSlots === 0 || doc.dayEnded) {
+      return { label: "Not working", color: "var(--text-muted)", bgColor: "var(--surface-2)" };
+    }
+
+    if (doc.openSlots.length === 0) {
+      return { label: "Fully booked", color: "var(--danger)", bgColor: "var(--danger-soft)" };
+    }
+
+    return {
+      label: `Free, ${doc.openSlots.length} slots`,
+      color: "var(--success)",
+      bgColor: "var(--success-soft)",
+    };
+  };
 
   return (
     <div>
@@ -66,14 +107,16 @@ export function OverviewTab({
                       {e.patientName ?? e.patientPhone}
                     </strong>
                     {e.urgent && (
-                      <span style={{
-                        fontSize: 10,
-                        fontWeight: 700,
-                        padding: "2px 6px",
-                        background: "var(--danger-soft)",
-                        color: "var(--danger)",
-                        borderRadius: 3,
-                      }}>
+                      <span
+                        style={{
+                          fontSize: 10,
+                          fontWeight: 700,
+                          padding: "2px 6px",
+                          background: "var(--danger-soft)",
+                          color: "var(--danger)",
+                          borderRadius: 3,
+                        }}
+                      >
                         URGENT
                       </span>
                     )}
@@ -241,91 +284,116 @@ export function OverviewTab({
           )}
         </div>
 
-        {/* RIGHT: DOCTOR STATUS + QUICK STATS */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          {/* Doctor Availability Card */}
-          <div className="card" style={{ marginBottom: 0 }}>
-            <h2 className="card-title-icon" style={{ marginBottom: 10 }}>
-              <StethoscopeIcon size={16} /> Doctors Now
-            </h2>
+        {/* RIGHT: DOCTOR STATUS BY DEPARTMENT */}
+        <div className="card" style={{ marginBottom: 0 }}>
+          <h2 className="card-title-icon" style={{ marginBottom: 12 }}>
+            <StethoscopeIcon size={16} /> Doctors by Department
+          </h2>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {todayDoctorStatus.length === 0 ? (
-                <p className="empty-state" style={{ margin: 0, fontSize: 12 }}>
-                  No active doctors
-                </p>
-              ) : (
-                todayDoctorStatus.slice(0, 5).map((d) => (
-                  <div
-                    key={d.id}
-                    style={{
-                      padding: "8px 10px",
-                      background: "var(--surface-2)",
-                      borderRadius: "var(--radius-sm)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      gap: 8,
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 0 }}>
-                      <div
-                        style={{
-                          width: 6,
-                          height: 6,
-                          borderRadius: "50%",
-                          background: d.isLive ? "var(--success)" : "var(--danger)",
-                        }}
-                      />
-                      <div style={{ minWidth: 0, flex: 1 }}>
-                        <div
-                          style={{
-                            fontSize: 12,
-                            fontWeight: 600,
-                            color: "var(--text)",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          {d.name}
-                        </div>
-                        <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
-                          {d.inProgressWith
-                            ? `With ${d.inProgressWith.patient.name ?? d.inProgressWith.patient.phone}`
-                            : d.openSlots.length > 0
-                              ? `${d.openSlots.length} slots`
-                              : "Fully booked"}
-                        </div>
-                      </div>
+          {todayDoctorStatus.length === 0 ? (
+            <p className="empty-state" style={{ margin: 0, fontSize: 12 }}>
+              No doctors active today
+            </p>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {sortedDepts.map((dept) => {
+                const doctors = doctorsByDept[dept];
+                return (
+                  <div key={dept}>
+                    <div
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: "var(--text-muted)",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.5px",
+                        marginBottom: 6,
+                        paddingBottom: 6,
+                        borderBottom: "1px solid var(--border-soft)",
+                      }}
+                    >
+                      {dept}
                     </div>
-                    {d.openSlots.length > 0 && (
-                      <span
-                        style={{
-                          fontSize: 10,
-                          fontWeight: 700,
-                          padding: "2px 6px",
-                          background: "var(--success-soft)",
-                          color: "var(--success)",
-                          borderRadius: 3,
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {d.openSlots.length}
-                      </span>
-                    )}
+
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {doctors.map((doc) => {
+                        const status = getDocStatus(doc);
+                        return (
+                          <div
+                            key={doc.id}
+                            style={{
+                              padding: "8px 10px",
+                              background: "var(--surface-2)",
+                              borderRadius: "var(--radius-sm)",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              gap: 8,
+                            }}
+                          >
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 0 }}>
+                              <div
+                                style={{
+                                  width: 6,
+                                  height: 6,
+                                  borderRadius: "50%",
+                                  background: doc.isLive ? "var(--success)" : "var(--danger)",
+                                  flexShrink: 0,
+                                }}
+                              />
+                              <div style={{ minWidth: 0, flex: 1 }}>
+                                <div
+                                  style={{
+                                    fontSize: 12,
+                                    fontWeight: 600,
+                                    color: "var(--text)",
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    whiteSpace: "nowrap",
+                                  }}
+                                >
+                                  {doc.name}
+                                </div>
+                                <div
+                                  style={{
+                                    fontSize: 11,
+                                    color: status.color,
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    whiteSpace: "nowrap",
+                                    fontWeight: 500,
+                                  }}
+                                >
+                                  {status.label}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                ))
-              )}
+                );
+              })}
             </div>
-          </div>
+          )}
 
           {/* Quick Stats */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 10,
+              marginTop: 14,
+              paddingTop: 14,
+              borderTop: "1px solid var(--border-soft)",
+            }}
+          >
             <div
-              className="stat-card"
               style={{
                 padding: "10px 12px",
+                background: "var(--surface-2)",
+                borderRadius: "var(--radius-sm)",
                 textAlign: "center",
               }}
             >
@@ -337,9 +405,10 @@ export function OverviewTab({
               </div>
             </div>
             <div
-              className="stat-card"
               style={{
                 padding: "10px 12px",
+                background: "var(--surface-2)",
+                borderRadius: "var(--radius-sm)",
                 textAlign: "center",
               }}
             >
