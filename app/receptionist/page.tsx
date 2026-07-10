@@ -197,13 +197,20 @@ export default async function ReceptionistPage({
             selectedDoctorId={selectedDoctorId}
             selectedPatientName={selectedPatientName}
             selectedPatientPhone={selectedPatientPhone}
-            week={week}
-            weekStart={weekStart}
-            nextWeekStart={nextWeekStart}
-            prevWeekStart={prevWeekStart}
+            week={week.map((day: any) => ({
+              ...day,
+              date: day.date.toISOString(),
+              slots: day.slots.map((slot: any) => ({
+                ...slot,
+                startsAt: slot.startsAt.toISOString(),
+              })),
+            }))}
+            weekStart={weekStart.toISOString()}
+            nextWeekStart={nextWeekStart.toISOString()}
+            prevWeekStart={prevWeekStart.toISOString()}
             canGoBack={canGoBack}
             timeZone={timeZone}
-            now={now}
+            now={now.toISOString()}
             slotQueryFn={slotQuery}
             params={params}
             preSelectedSlotId={params.slotId}

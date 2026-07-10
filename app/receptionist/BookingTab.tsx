@@ -18,12 +18,12 @@ interface BookingTabProps {
   selectedPatientName: string;
   selectedPatientPhone: string;
   week: Array<any>;
-  weekStart: Date;
-  nextWeekStart: Date;
-  prevWeekStart: Date;
+  weekStart: string;
+  nextWeekStart: string;
+  prevWeekStart: string;
   canGoBack: boolean;
   timeZone: string;
-  now: Date;
+  now: string;
   slotQueryFn: (params: {
     doctorId: string;
     patientName: string;
@@ -49,16 +49,22 @@ export function BookingTab({
   selectedPatientName,
   selectedPatientPhone,
   week,
-  weekStart,
-  nextWeekStart,
-  prevWeekStart,
+  weekStart: weekStartStr,
+  nextWeekStart: nextWeekStartStr,
+  prevWeekStart: prevWeekStartStr,
   canGoBack,
   timeZone,
-  now,
+  now: nowStr,
   slotQueryFn,
   params,
   preSelectedSlotId,
 }: BookingTabProps) {
+  // Convert ISO strings back to Date objects
+  const weekStart = new Date(weekStartStr);
+  const nextWeekStart = new Date(nextWeekStartStr);
+  const prevWeekStart = new Date(prevWeekStartStr);
+  const now = new Date(nowStr);
+
   const activeDoctors = allDoctors.filter((d) => d.active);
   const [query, setQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Patient[]>([]);
@@ -397,13 +403,13 @@ export function BookingTab({
                 patientPhone={selectedPatient.phone}
                 preSelectedSlotId={preSelectedSlotId}
                 days={week.map((day: any) => ({
-                  label: day.date.toLocaleDateString(undefined, { weekday: "short", timeZone }),
-                  sub: day.date.toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone }),
+                  label: new Date(day.date).toLocaleDateString(undefined, { weekday: "short", timeZone }),
+                  sub: new Date(day.date).toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone }),
                   slots: day.slots.map((slot: any) => ({
                     id: slot.id,
                     status: slot.status,
-                    time: slot.startsAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", timeZone }),
-                    isPast: slot.startsAt.getTime() < now.getTime(),
+                    time: new Date(slot.startsAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", timeZone }),
+                    isPast: new Date(slot.startsAt).getTime() < now.getTime(),
                   })),
                 }))}
               />
