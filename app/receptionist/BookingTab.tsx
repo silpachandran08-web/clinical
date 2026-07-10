@@ -2,7 +2,7 @@
 
 import type { Clinic } from "@prisma/client";
 import { useState, useTransition } from "react";
-import { addPatientAction, searchPatientsAction } from "@/lib/actions/receptionist";
+import { addPatientAction, searchPatientsAction, listWeekSlotsAction } from "@/lib/actions/receptionist";
 import { WeekSlotPicker } from "./WeekSlotPicker";
 import {
   SearchIcon,
@@ -67,6 +67,9 @@ export function BookingTab({
   const [isAddingPatient, startAddingTransition] = useTransition();
   const [searchError, setSearchError] = useState<string | null>(null);
   const [selectedDoctor, setSelectedDoctor] = useState(selectedDoctorId);
+  const [currentWeekStart, setCurrentWeekStart] = useState(weekStart);
+  const [displayWeek, setDisplayWeek] = useState(week);
+  const [isFetchingWeek, startFetchingWeek] = useTransition();
 
   // Handle live search
   const handleSearchChange = async (text: string) => {
@@ -139,22 +142,28 @@ export function BookingTab({
     setAddFormData({ name: "", phone: "", email: "" });
   };
 
-  const hasSelectedPatient = selectedPatient !== null;
+  const handleNavigateWeek = (direction: "prev" | "next") => {
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    const newWeekStart = new Date(
+      currentWeekStart.getTime() + (direction === "next" ? 7 * DAY_MS : -7 * DAY_MS)
+    );
 
-  const buildSlotUrl = (params: {
-    doctorId: string;
-    patientName: string;
-    patientPhone: string;
-    week?: string;
-  }) => {
-    const q = new URLSearchParams();
-    q.set("tab", "booking");
-    q.set("doctorId", params.doctorId);
-    if (params.patientName) q.set("patientName", params.patientName);
-    if (params.patientPhone) q.set("patientPhone", params.patientPhone);
-    if (params.week) q.set("week", params.week);
-    return `/receptionist?${q.toString()}#assign-doctor`;
+    if (direction === "prev" && !canGoBack) return;
+    if (!selectedDoctor) return;
+
+    startFetchingWeek(async () => {
+      try {
+        const newWeek = await listWeekSlotsAction(selectedDoctor, newWeekStart.toISOString());
+        setCurrentWeekStart(newWeekStart);
+        setDisplayWeek(newWeek);
+      } catch (err) {
+        setSearchError("Failed to load week slots");
+        console.error(err);
+      }
+    });
   };
+
+  const hasSelectedPatient = selectedPatient !== null;
 
   return (
     <div className="card" id="assign-doctor">
@@ -368,41 +377,49 @@ export function BookingTab({
           {selectedDoctor && (
             <div>
               <div className="week-nav">
-                <a
-                  href={
-                    canGoBack
-                      ? buildSlotUrl({
-                          doctorId: selectedDoctor,
-                          patientName: selectedPatient.name ?? selectedPatient.phone,
-                          patientPhone: selectedPatient.phone,
-                          week: prevWeekStart.toISOString().split("T")[0],
-                        })
-                      : undefined
-                  }
-                  aria-disabled={!canGoBack}
-                  style={!canGoBack ? { color: "var(--text-muted)", pointerEvents: "none" } : undefined}
+                <button
+                  onClick={() => handleNavigateWeek("prev")}
+                  disabled={!canGoBack || isFetchingWeek}
+                  style={{
+                    padding: "8px 12px",
+                    background: "var(--surface-2)",
+                    border: "1px solid var(--border-soft)",
+                    borderRadius: "var(--radius-sm)",
+                    cursor: (!canGoBack || isFetchingWeek) ? "not-allowed" : "pointer",
+                    opacity: (!canGoBack || isFetchingWeek) ? 0.5 : 1,
+                    fontSize: 12,
+                    fontWeight: 500,
+                    color: "var(--text)",
+                  }}
                 >
-                  ← Previous week
-                </a>
+                  {isFetchingWeek ? "Loading…" : "← Previous week"}
+                </button>
                 <span className="range">
-                  {weekStart.toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone })} –{" "}
-                  {nextWeekStart.toLocaleDateString(undefined, {
+                  {currentWeekStart.toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone })} –{" "}
+                  {new Date(currentWeekStart.getTime() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString(undefined, {
                     month: "short",
                     day: "numeric",
                     year: "numeric",
                     timeZone,
                   })}
                 </span>
-                <a
-                  href={buildSlotUrl({
-                    doctorId: selectedDoctor,
-                    patientName: selectedPatient.name ?? selectedPatient.phone,
-                    patientPhone: selectedPatient.phone,
-                    week: nextWeekStart.toISOString().split("T")[0],
-                  })}
+                <button
+                  onClick={() => handleNavigateWeek("next")}
+                  disabled={isFetchingWeek}
+                  style={{
+                    padding: "8px 12px",
+                    background: "var(--surface-2)",
+                    border: "1px solid var(--border-soft)",
+                    borderRadius: "var(--radius-sm)",
+                    cursor: isFetchingWeek ? "not-allowed" : "pointer",
+                    opacity: isFetchingWeek ? 0.5 : 1,
+                    fontSize: 12,
+                    fontWeight: 500,
+                    color: "var(--text)",
+                  }}
                 >
-                  Next week →
-                </a>
+                  {isFetchingWeek ? "Loading…" : "Next week →"}
+                </button>
               </div>
 
               <WeekSlotPicker
@@ -410,7 +427,7 @@ export function BookingTab({
                 patientName={selectedPatient.name ?? selectedPatient.phone}
                 patientPhone={selectedPatient.phone}
                 preSelectedSlotId={preSelectedSlotId}
-                days={week.map((day: any) => ({
+                days={displayWeek.map((day: any) => ({
                   label: new Date(day.date).toLocaleDateString(undefined, { weekday: "short", timeZone }),
                   sub: new Date(day.date).toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone }),
                   slots: day.slots.map((slot: any) => ({

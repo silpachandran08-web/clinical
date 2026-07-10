@@ -103,3 +103,24 @@ export async function searchPatientsAction(query: string) {
   const { searchPatients } = await import("@/src/receptionistHandlers");
   return searchPatients(session.clinicId, query);
 }
+
+export async function listWeekSlotsAction(
+  doctorId: string,
+  weekStartStr: string
+) {
+  const session = await getSession();
+  if (!session) throw new Error("Not authenticated");
+
+  const { listWeekSlots } = await import("@/src/receptionistHandlers");
+  const weekStart = new Date(weekStartStr);
+  const week = await listWeekSlots(session.clinicId, doctorId, weekStart);
+
+  return week.map((day: any) => ({
+    ...day,
+    date: day.date.toISOString(),
+    slots: day.slots.map((slot: any) => ({
+      ...slot,
+      startsAt: slot.startsAt.toISOString(),
+    })),
+  }));
+}
