@@ -27,6 +27,12 @@ export async function addDoctorAction(formData: FormData) {
   const payload = createDoctorSchema.parse({
     departmentId: String(formData.get("departmentId")),
     name: String(formData.get("name") ?? ""),
+    consultationFee: Number(formData.get("consultationFee") ?? 0),
+    qualifications: String(formData.get("qualifications") ?? "").trim() || undefined,
+    bio: String(formData.get("bio") ?? "").trim() || undefined,
+    specialization: String(formData.get("specialization") ?? "").trim() || undefined,
+    licenseNumber: String(formData.get("licenseNumber") ?? "").trim() || undefined,
+    yearsOfExperience: formData.get("yearsOfExperience") ? Number(formData.get("yearsOfExperience")) : undefined,
     workingHours: parseWorkingHoursFromForm(formData),
   });
 
@@ -51,8 +57,14 @@ export async function editDoctorAction(formData: FormData) {
 
   const doctorId = String(formData.get("doctorId"));
   const payload = updateDoctorSchema.parse({
-    departmentId: String(formData.get("departmentId")),
-    name: String(formData.get("name") ?? ""),
+    departmentId: String(formData.get("departmentId") ?? "").trim() || undefined,
+    name: String(formData.get("name") ?? "").trim() || undefined,
+    consultationFee: formData.get("consultationFee") ? Number(formData.get("consultationFee")) : undefined,
+    qualifications: String(formData.get("qualifications") ?? "").trim() || undefined,
+    bio: String(formData.get("bio") ?? "").trim() || undefined,
+    specialization: String(formData.get("specialization") ?? "").trim() || undefined,
+    licenseNumber: String(formData.get("licenseNumber") ?? "").trim() || undefined,
+    yearsOfExperience: formData.get("yearsOfExperience") ? Number(formData.get("yearsOfExperience")) : undefined,
     workingHours: parseWorkingHoursFromForm(formData),
   });
 
