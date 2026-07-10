@@ -1,3 +1,5 @@
+"use client";
+
 import type { Clinic } from "@prisma/client";
 import { useState, useTransition } from "react";
 import { addPatientAction, searchPatientsAction } from "@/lib/actions/receptionist";
