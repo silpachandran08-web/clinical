@@ -27,197 +27,332 @@ export function OverviewTab({
 }: OverviewTabProps) {
   const waitingCount = todayDoctorStatus.reduce((sum, d) => sum + d.waiting.length, 0);
   const inProgressCount = todayDoctorStatus.filter((d) => d.inProgressWith).length;
+  const availableDoctors = todayDoctorStatus.filter((d) => d.isLive);
 
   return (
-    <div className="dashboard-layout">
-      <div className="dashboard-main">
-        {escalations.length > 0 && (
-          <div className="card" style={{ borderColor: "var(--warning)" }}>
-            <h2 className="card-title-icon">
-              <AlertIcon /> Patient follow-ups
-              <span className="badge warning">{escalations.length}</span>
+    <div style={{ maxWidth: "1200px" }}>
+      {/* ESCALATIONS - Priority Alert */}
+      {escalations.length > 0 && (
+        <div className="card" style={{ borderColor: "var(--warning)", borderWidth: "2px", marginBottom: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+            <AlertIcon size={20} style={{ color: "var(--warning)" }} />
+            <h2 style={{ margin: 0, color: "var(--warning)", fontSize: 15, fontWeight: 700 }}>
+              Patient Follow-ups ({escalations.length})
             </h2>
-            <p className="muted" style={{ margin: "0 0 12px", fontSize: 12.5 }}>
-              The WhatsApp assistant asked staff to take over these chats — reply to the patient, then mark it handled.
+          </div>
+          <p className="muted" style={{ margin: "0 0 14px", fontSize: 12.5 }}>
+            WhatsApp AI handed over these chats — reply and mark handled
+          </p>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {escalations.map((e) => (
+              <div
+                key={e.id}
+                style={{
+                  padding: "12px 14px",
+                  background: "var(--surface-2)",
+                  borderRadius: "var(--radius-sm)",
+                  borderLeft: e.urgent ? "3px solid var(--danger)" : "3px solid var(--warning)",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: 12,
+                }}
+              >
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                    <PatientIcon size={14} />
+                    <strong style={{ fontSize: 13, color: "var(--text)" }}>
+                      {e.patientName ?? e.patientPhone}
+                    </strong>
+                    {e.urgent && (
+                      <span style={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        padding: "2px 6px",
+                        background: "var(--danger-soft)",
+                        color: "var(--danger)",
+                        borderRadius: 3,
+                      }}>
+                        URGENT
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 4 }}>
+                    {e.reason}
+                  </div>
+                  <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                    {e.createdAt.toLocaleString(undefined, {
+                      month: "short",
+                      day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      timeZone,
+                    })}
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                  <a
+                    className="btn-link"
+                    href={`https://wa.me/${e.patientPhone.replace("+", "")}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ fontSize: 12, whiteSpace: "nowrap" }}
+                  >
+                    WhatsApp
+                  </a>
+                  <form action={resolveEscalationAction} style={{ margin: 0 }}>
+                    <input type="hidden" name="escalationId" value={e.id} />
+                    <button
+                      type="submit"
+                      style={{
+                        fontSize: 12,
+                        padding: "5px 10px",
+                        background: "var(--success)",
+                        color: "white",
+                        border: "none",
+                        borderRadius: 4,
+                        cursor: "pointer",
+                        fontWeight: 600,
+                      }}
+                    >
+                      Done
+                    </button>
+                  </form>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* MAIN GRID - 2 Column Layout */}
+      <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 16, alignItems: "start" }}>
+        {/* LEFT: TODAY'S APPOINTMENTS */}
+        <div className="card">
+          <h2 className="card-title-icon" style={{ marginBottom: 12 }}>
+            <CalendarIcon /> Today's Appointments ({appointments.length})
+          </h2>
+
+          {appointments.length === 0 ? (
+            <p className="empty-state" style={{ margin: 0, padding: "20px 0", textAlign: "center" }}>
+              No appointments today
             </p>
-            <div className="escalation-list">
-              {escalations.map((e) => (
-                <div className="escalation-row" key={e.id}>
-                  <div className="escalation-row-top">
-                    <div className="escalation-info">
-                      <div className="schedule-patient">
-                        <PatientIcon size={14} />
-                        <span>{e.patientName ?? e.patientPhone}</span>
-                        {e.urgent && <span className="badge danger">URGENT</span>}
-                        <span className="muted" style={{ fontSize: 11.5, fontWeight: 500 }}>
-                          {e.createdAt.toLocaleString(undefined, {
-                            month: "short",
-                            day: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                            timeZone,
-                          })}
-                        </span>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {appointments.map((a) => (
+                <div
+                  key={a.id}
+                  style={{
+                    padding: "10px 12px",
+                    background: "var(--surface-2)",
+                    borderRadius: "var(--radius-sm)",
+                    borderLeft: `3px solid ${
+                      a.status === "CANCELLED" || a.status === "NO_SHOW"
+                        ? "var(--danger)"
+                        : a.status === "COMPLETED"
+                          ? "var(--success)"
+                          : "var(--accent)"
+                    }`,
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: 10,
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0 }}>
+                    <div
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: "var(--accent)",
+                        minWidth: "45px",
+                      }}
+                    >
+                      {a.slot.startsAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", timeZone })}
+                    </div>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 600,
+                          color: "var(--text)",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {a.patient.name ?? a.patient.phone}
                       </div>
-                      <div className="muted" style={{ fontSize: 12.5, paddingLeft: 20 }}>
-                        {e.reason}
-                        {e.patientName && <> · {e.patientPhone}</>}
+                      <div
+                        style={{
+                          fontSize: 11,
+                          color: "var(--text-muted)",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {a.doctor.name}
                       </div>
                     </div>
-                    <div className="escalation-actions">
-                      <a
-                        className="btn-link"
-                        href={`https://wa.me/${e.patientPhone.replace("+", "")}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        Reply on WhatsApp
-                      </a>
-                      <form action={resolveEscalationAction}>
-                        <input type="hidden" name="escalationId" value={e.id} />
-                        <button type="submit" className="secondary">
-                          Mark handled
+                  </div>
+
+                  <div style={{ display: "flex", gap: 6, flexShrink: 0, alignItems: "center" }}>
+                    <span
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 600,
+                        padding: "2px 6px",
+                        borderRadius: 3,
+                        background: a.bookedByStaff ? "var(--surface)" : "var(--accent-soft)",
+                        color: a.bookedByStaff ? "var(--text-muted)" : "var(--accent)",
+                        border: a.bookedByStaff ? "1px solid var(--border)" : "none",
+                      }}
+                    >
+                      {a.bookedByStaff ? "Walk-in" : "Online"}
+                    </span>
+
+                    {a.status === "CONFIRMED" && (
+                      <form action={checkInAction} style={{ margin: 0 }}>
+                        <input type="hidden" name="appointmentId" value={a.id} />
+                        <button
+                          type="submit"
+                          style={{
+                            fontSize: 11,
+                            padding: "4px 8px",
+                            background: "var(--success)",
+                            color: "white",
+                            border: "none",
+                            borderRadius: 3,
+                            cursor: "pointer",
+                            fontWeight: 600,
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          Check in
                         </button>
                       </form>
-                    </div>
+                    )}
                   </div>
-                  <EscalationInstructionForm escalationId={e.id} />
                 </div>
               ))}
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
 
-      <aside className="dashboard-sidebar">
-        <div className="card" id="doctor-availability" style={{ overflow: "visible", marginBottom: 0 }}>
-          <h2 className="card-title-icon" style={{ marginBottom: 14 }}>
-            <StethoscopeIcon /> Doctor Availability
-          </h2>
-          {todayDoctorStatus.length === 0 ? (
-            <p className="empty-state">No active doctors yet.</p>
-          ) : (
-            <div className="doctor-availability-list">
-              {todayDoctorStatus.map((d) => (
-                <div className="doctor-availability-row" key={d.id}>
-                  <div className="doctor-availability-name">
-                    <StethoscopeIcon size={15} />
-                    <span className="doctor-name-text">{d.name}</span>
-                    <span
-                      className={`availability-dot ${d.isLive ? "available" : "unavailable"}`}
-                      title={d.isLive ? "Available" : "Unavailable"}
-                    />
-                  </div>
-                  <div className="doctor-availability-live">
-                    {d.inProgressWith ? (
-                      <span className="badge success">
-                        With {d.inProgressWith.patient.name ?? d.inProgressWith.patient.phone}
-                      </span>
-                    ) : (
-                      <span className="muted">Free</span>
-                    )}
-                    {d.waiting.length > 0 && <span className="badge warning">{d.waiting.length} waiting</span>}
-                  </div>
-                  <div>
-                    {d.totalSlots === 0 ? (
-                      <span className="muted">Not working today</span>
-                    ) : d.dayEnded ? (
-                      <span className="muted">Day closed</span>
-                    ) : d.openSlots.length === 0 ? (
-                      <span className="badge danger">Fully booked</span>
-                    ) : (
-                      <div className="slot-tooltip">
-                        <div>
-                          <span className="badge success">{d.openSlots.length} open slots</span>
-                          <div className="muted" style={{ fontSize: 11.5, marginTop: 4 }}>
-                            Next available{" "}
-                            {d.openSlots[0].startsAt.toLocaleTimeString([], {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                              timeZone,
-                            })}
-                          </div>
+        {/* RIGHT: DOCTOR STATUS + QUICK STATS */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {/* Doctor Availability Card */}
+          <div className="card" style={{ marginBottom: 0 }}>
+            <h2 className="card-title-icon" style={{ marginBottom: 10 }}>
+              <StethoscopeIcon size={16} /> Doctors Now
+            </h2>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {todayDoctorStatus.length === 0 ? (
+                <p className="empty-state" style={{ margin: 0, fontSize: 12 }}>
+                  No active doctors
+                </p>
+              ) : (
+                todayDoctorStatus.slice(0, 5).map((d) => (
+                  <div
+                    key={d.id}
+                    style={{
+                      padding: "8px 10px",
+                      background: "var(--surface-2)",
+                      borderRadius: "var(--radius-sm)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 8,
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 0 }}>
+                      <div
+                        style={{
+                          width: 6,
+                          height: 6,
+                          borderRadius: "50%",
+                          background: d.isLive ? "var(--success)" : "var(--danger)",
+                        }}
+                      />
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div
+                          style={{
+                            fontSize: 12,
+                            fontWeight: 600,
+                            color: "var(--text)",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {d.name}
                         </div>
-                        <div className="slot-tooltip-panel">
-                          <div className="slot-tooltip-title">Open times today</div>
-                          <div className="slot-tooltip-times">
-                            {d.openSlots.slice(0, 16).map((s: any) => (
-                              <span key={s.id} className="slot-tooltip-chip">
-                                {s.startsAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", timeZone })}
-                              </span>
-                            ))}
-                            {d.openSlots.length > 16 && (
-                              <span className="muted" style={{ fontSize: 11 }}>
-                                +{d.openSlots.length - 16} more
-                              </span>
-                            )}
-                          </div>
+                        <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                          {d.inProgressWith
+                            ? `With ${d.inProgressWith.patient.name ?? d.inProgressWith.patient.phone}`
+                            : d.openSlots.length > 0
+                              ? `${d.openSlots.length} slots`
+                              : "Fully booked"}
                         </div>
                       </div>
+                    </div>
+                    {d.openSlots.length > 0 && (
+                      <span
+                        style={{
+                          fontSize: 10,
+                          fontWeight: 700,
+                          padding: "2px 6px",
+                          background: "var(--success-soft)",
+                          color: "var(--success)",
+                          borderRadius: 3,
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {d.openSlots.length}
+                      </span>
                     )}
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
-          )}
-        </div>
+          </div>
 
-        <div className="card">
-          <h2 className="card-title-icon">
-            <CalendarIcon /> Today&apos;s schedule
-          </h2>
-          {appointments.length === 0 ? (
-            <p className="empty-state">No appointments today.</p>
-          ) : (
-            <div className="appt-table">
-              {appointments.map((a) => (
-                <div className="appt-row" key={a.id}>
-                  <span className="appt-time">
-                    {a.slot.startsAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", timeZone })}
-                  </span>
-                  <span className="appt-patient">
-                    <PatientIcon size={14} />
-                    <span className="appt-patient-name">{a.patient.name ?? a.patient.phone}</span>
-                  </span>
-                  <span>
-                    {a.bookedByStaff ? (
-                      <span className="badge">walk-in</span>
-                    ) : (
-                      <span className="badge info">online</span>
-                    )}
-                  </span>
-                  <span className="appt-status">
-                    <span
-                      className={`badge ${
-                        a.status === "CANCELLED" || a.status === "NO_SHOW"
-                          ? "danger"
-                          : a.status === "COMPLETED"
-                            ? "success"
-                            : ""
-                      }`}
-                    >
-                      {a.status}
-                    </span>
-                  </span>
-                  <div className="appt-footer">
-                    <span className="appt-doctor">{a.doctor.name}</span>
-                    <span>
-                      {a.status === "CONFIRMED" && (
-                        <form action={checkInAction}>
-                          <input type="hidden" name="appointmentId" value={a.id} />
-                          <button type="submit" className="secondary">
-                            Check in
-                          </button>
-                        </form>
-                      )}
-                    </span>
-                  </div>
-                </div>
-              ))}
+          {/* Quick Stats */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div
+              className="stat-card"
+              style={{
+                padding: "10px 12px",
+                textAlign: "center",
+              }}
+            >
+              <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text)" }}>
+                {inProgressCount}
+              </div>
+              <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
+                In consultation
+              </div>
             </div>
-          )}
+            <div
+              className="stat-card"
+              style={{
+                padding: "10px 12px",
+                textAlign: "center",
+              }}
+            >
+              <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text)" }}>
+                {waitingCount}
+              </div>
+              <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
+                Waiting
+              </div>
+            </div>
+          </div>
         </div>
-      </aside>
+      </div>
     </div>
   );
 }

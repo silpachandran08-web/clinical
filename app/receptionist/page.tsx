@@ -118,7 +118,7 @@ export default async function ReceptionistPage({
         </span>
       </div>
 
-      <div className="stat-grid">
+      <div className="stat-grid" style={{ marginLeft: "24px" }}>
         <div className="stat-card">
           <div className="stat-card-icon"><StethoscopeIcon /></div>
           <div className="stat-value">{todayDoctorStatus.length}</div>
@@ -127,7 +127,7 @@ export default async function ReceptionistPage({
         <div className="stat-card">
           <div className="stat-card-icon"><CalendarIcon /></div>
           <div className="stat-value">{appointments.length}</div>
-          <div className="stat-label">Appointments today</div>
+          <div className="stat-label">Appointments</div>
         </div>
         <div className="stat-card">
           <div className="stat-card-icon"><CheckCircleIcon /></div>
