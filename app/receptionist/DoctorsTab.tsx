@@ -20,11 +20,12 @@ interface DoctorWithWeeks {
 interface DoctorsTabProps {
   clinic: Clinic;
   doctors: DoctorWithWeeks[];
+  now: Date;
 }
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-export function DoctorsTab({ clinic, doctors }: DoctorsTabProps) {
+export function DoctorsTab({ clinic, doctors, now }: DoctorsTabProps) {
   // Compute working days (all days except weekends)
   const workingDayNums = Array.from({ length: 7 }, (_, i) => i).filter(
     (day) => !clinic.weekendDays.includes(day)
@@ -266,10 +267,19 @@ export function DoctorsTab({ clinic, doctors }: DoctorsTabProps) {
                     </button>
                   </div>
 
-                  {/* Week Grid - Only Working Days */}
+                  {/* Week Grid - Only Working Days (Today & Future) */}
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))", gap: 12 }}>
                     {currentWeek.days
-                      .filter((day) => workingDayNums.includes(day.date.getUTCDay()))
+                      .filter((day) => {
+                        // Only show working days
+                        if (!workingDayNums.includes(day.date.getUTCDay())) return false;
+                        // Only show today and future dates
+                        const dayStart = new Date(day.date);
+                        dayStart.setUTCHours(0, 0, 0, 0);
+                        const todayStart = new Date(now);
+                        todayStart.setUTCHours(0, 0, 0, 0);
+                        return dayStart.getTime() >= todayStart.getTime();
+                      })
                       .map((day, idx) => {
                         const dayOfWeek = day.date.getUTCDay();
                         const dayLabel = DAY_NAMES[dayOfWeek];
@@ -278,6 +288,13 @@ export function DoctorsTab({ clinic, doctors }: DoctorsTabProps) {
                           day: "numeric",
                           timeZone: clinic.timezone,
                         });
+
+                        // Check if this is today
+                        const dayStart = new Date(day.date);
+                        dayStart.setUTCHours(0, 0, 0, 0);
+                        const todayStart = new Date(now);
+                        todayStart.setUTCHours(0, 0, 0, 0);
+                        const isToday = dayStart.getTime() === todayStart.getTime();
 
                         return (
                           <div key={idx} style={{ flex: 1, minWidth: "0" }}>
@@ -317,52 +334,65 @@ export function DoctorsTab({ clinic, doctors }: DoctorsTabProps) {
                                     { hour: "2-digit", minute: "2-digit", timeZone: clinic.timezone }
                                   );
                                   const isOpen = slot.status === "OPEN";
+                                  const isPast = isToday && slot.startsAt.getTime() < now.getTime();
+                                  const canBook = isOpen && !isPast;
 
                                   return (
                                     <button
                                       key={slot.id}
                                       onClick={() =>
-                                        isOpen && handleSlotClick(doctor.id, slot.id)
+                                        canBook && handleSlotClick(doctor.id, slot.id)
                                       }
-                                      disabled={!isOpen}
+                                      disabled={!canBook}
                                       style={{
                                         padding: "8px 8px",
                                         fontSize: 11,
                                         fontWeight: 500,
                                         border: "1px solid var(--border-soft)",
                                         borderRadius: "var(--radius-sm)",
-                                        background: isOpen
-                                          ? "var(--success-soft)"
-                                          : slot.status === "BLOCKED"
+                                        background:
+                                          isPast
                                             ? "var(--surface-2)"
-                                            : "var(--danger-soft)",
-                                        color: isOpen
-                                          ? "var(--success)"
-                                          : slot.status === "BLOCKED"
+                                            : isOpen
+                                              ? "var(--success-soft)"
+                                              : slot.status === "BLOCKED"
+                                                ? "var(--surface-2)"
+                                                : "var(--danger-soft)",
+                                        color:
+                                          isPast
                                             ? "var(--text-muted)"
-                                            : "var(--danger)",
-                                        cursor: isOpen ? "pointer" : "not-allowed",
+                                            : isOpen
+                                              ? "var(--success)"
+                                              : slot.status === "BLOCKED"
+                                                ? "var(--text-muted)"
+                                                : "var(--danger)",
+                                        cursor: canBook ? "pointer" : "not-allowed",
+                                        opacity: isPast ? 0.5 : 1,
                                         transition: "all 0.15s ease",
                                         whiteSpace: "nowrap",
                                       }}
                                       onMouseEnter={(e) => {
-                                        if (isOpen) {
+                                        if (canBook) {
                                           (e.currentTarget as HTMLButtonElement).style.background =
                                             "var(--success)";
                                           (e.currentTarget as HTMLButtonElement).style.color = "white";
                                         }
                                       }}
                                       onMouseLeave={(e) => {
-                                        (e.currentTarget as HTMLButtonElement).style.background = isOpen
-                                          ? "var(--success-soft)"
-                                          : slot.status === "BLOCKED"
-                                            ? "var(--surface-2)"
-                                            : "var(--danger-soft)";
-                                        (e.currentTarget as HTMLButtonElement).style.color = isOpen
-                                          ? "var(--success)"
-                                          : slot.status === "BLOCKED"
-                                            ? "var(--text-muted)"
-                                            : "var(--danger)";
+                                        (e.currentTarget as HTMLButtonElement).style.background = isPast
+                                          ? "var(--surface-2)"
+                                          : isOpen
+                                            ? "var(--success-soft)"
+                                            : slot.status === "BLOCKED"
+                                              ? "var(--surface-2)"
+                                              : "var(--danger-soft)";
+                                        (e.currentTarget as HTMLButtonElement).style.color = isPast
+                                          ? "var(--text-muted)"
+                                          : isOpen
+                                            ? "var(--success)"
+                                            : slot.status === "BLOCKED"
+                                              ? "var(--text-muted)"
+                                              : "var(--danger)";
                                       }}
                                     >
                                       {time}
@@ -385,42 +415,68 @@ export function DoctorsTab({ clinic, doctors }: DoctorsTabProps) {
                       fontSize: 11,
                       color: "var(--text-muted)",
                       textAlign: "center",
+                      display: "flex",
+                      flexWrap: "wrap",
+                      gap: 12,
+                      justifyContent: "center",
                     }}
                   >
                     <span
                       style={{
-                        display: "inline-block",
-                        padding: "2px 6px",
-                        background: "var(--success-soft)",
-                        color: "var(--success)",
-                        borderRadius: 3,
-                        marginRight: 8,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
                       }}
                     >
+                      <span
+                        style={{
+                          display: "inline-block",
+                          width: 16,
+                          height: 16,
+                          background: "var(--success-soft)",
+                          borderRadius: 3,
+                          border: "1px solid var(--border-soft)",
+                        }}
+                      />
                       Open
                     </span>
                     <span
                       style={{
-                        display: "inline-block",
-                        padding: "2px 6px",
-                        background: "var(--danger-soft)",
-                        color: "var(--danger)",
-                        borderRadius: 3,
-                        marginRight: 8,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
                       }}
                     >
+                      <span
+                        style={{
+                          display: "inline-block",
+                          width: 16,
+                          height: 16,
+                          background: "var(--danger-soft)",
+                          borderRadius: 3,
+                          border: "1px solid var(--border-soft)",
+                        }}
+                      />
                       Booked
                     </span>
                     <span
                       style={{
-                        display: "inline-block",
-                        padding: "2px 6px",
-                        background: "var(--surface-2)",
-                        color: "var(--text-muted)",
-                        borderRadius: 3,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
                       }}
                     >
-                      Blocked
+                      <span
+                        style={{
+                          display: "inline-block",
+                          width: 16,
+                          height: 16,
+                          background: "var(--surface-2)",
+                          borderRadius: 3,
+                          border: "1px solid var(--border-soft)",
+                        }}
+                      />
+                      Past/Blocked
                     </span>
                   </div>
                 </div>

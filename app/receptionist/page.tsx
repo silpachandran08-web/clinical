@@ -185,7 +185,7 @@ export default async function ReceptionistPage({
         )}
 
         {currentTab === "doctors" && (
-          <DoctorsTab clinic={clinic} doctors={doctorsWithWeeks} />
+          <DoctorsTab clinic={clinic} doctors={doctorsWithWeeks} now={now} />
         )}
 
         {currentTab === "booking" && (
