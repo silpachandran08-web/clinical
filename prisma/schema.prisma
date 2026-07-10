@@ -143,6 +143,14 @@ model Clinic {
   weekendDays        Int[]              @default([5, 6]) // Fri=5, Sat=6 (0=Sun..6=Sat)
   posProvider        PosProvider        @default(MANUAL)
   posTerminalName    String?            // front-desk label for the physical terminal, e.g. "Front desk mada terminal"
+  // Terminal-API credentials from the acquirer's merchant onboarding pack
+  // (Geidea merchant portal / Neoleap merchant support). Same masking rules
+  // as the WhatsApp credentials: key/secret are never echoed back to the
+  // browser once saved. All null while posProvider = MANUAL.
+  posMerchantId      String?
+  posApiKey          String?
+  posApiSecret       String?
+  posTerminalId      String?            // the physical device's terminal ID (printed on the terminal / its receipts)
   integrationMode    IntegrationMode    @default(NATIVE)
   integrationConfig  Json?              // adapter-specific connection details
   trialEndsAt        DateTime
@@ -346,6 +354,9 @@ model Payment {
   amount        Decimal       @db.Decimal(10, 2)
   method        PaymentMethod
   status        PaymentStatus @default(PAID)
+  provider      PosProvider   @default(MANUAL) // which terminal API took this payment (MANUAL = keyed in by staff)
+  providerTxnId String?       // the acquirer's transaction id, used to poll status while PENDING
+  failureReason String?       // human-readable decline/timeout reason when status = FAILED
   reference     String?       // POS approval code / receipt number from the terminal
   recordedById  String?
   recordedBy    User?         @relation(fields: [recordedById], references: [id])

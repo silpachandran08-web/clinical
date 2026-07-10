@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
 import { ensureWhatsAppVerifyToken, getClinic } from "@/src/adminHandlers";
-import { savePosSettingsAction } from "@/lib/actions/billing";
 import { getSession } from "@/lib/session";
 import { ClinicProfileForm } from "./ClinicProfileForm";
+import { PosSettingsForm } from "./PosSettingsForm";
 import { WhatsAppCredentialsForm } from "./WhatsAppCredentialsForm";
 
 export default async function ClinicPage() {
@@ -29,33 +29,19 @@ export default async function ClinicPage() {
         <p className="muted">
           How card payments are collected at the front desk. With <strong>Manual POS</strong>, staff
           charge your existing bank terminal (any mada terminal works) and record the approval code
-          in the Billing tab. Direct terminal integrations with Riyadh acquirers (Geidea, Neoleap /
-          Al Rajhi) — where the amount is pushed to the device automatically — will appear here once
-          available.
+          in the Billing tab. Pick <strong>Geidea</strong> or <strong>Neoleap (Al Rajhi)</strong> —
+          the two most common terminal suppliers in Riyadh — and enter the API credentials from
+          your merchant agreement, and the Billing tab gets a one-click Charge button that pushes
+          the amount straight to the terminal and marks the visit paid when the card is approved.
         </p>
-        <form action={savePosSettingsAction} className="stack">
-          <label>
-            Payment provider
-            <select name="posProvider" defaultValue={clinic.posProvider}>
-              <option value="MANUAL">Manual POS — any bank terminal</option>
-              <option value="GEIDEA" disabled>
-                Geidea terminal API (coming soon)
-              </option>
-              <option value="NEOLEAP" disabled>
-                Neoleap / Al Rajhi terminal API (coming soon)
-              </option>
-            </select>
-          </label>
-          <label>
-            Terminal name (optional)
-            <input
-              name="posTerminalName"
-              defaultValue={clinic.posTerminalName ?? ""}
-              placeholder='e.g. "Front desk mada terminal — Riyad Bank"'
-            />
-          </label>
-          <button type="submit">Save payment settings</button>
-        </form>
+        <PosSettingsForm
+          posProvider={clinic.posProvider}
+          posTerminalName={clinic.posTerminalName}
+          posMerchantId={clinic.posMerchantId}
+          posTerminalId={clinic.posTerminalId}
+          hasApiKey={Boolean(clinic.posApiKey)}
+          hasApiSecret={Boolean(clinic.posApiSecret)}
+        />
       </div>
 
       <div className="card">

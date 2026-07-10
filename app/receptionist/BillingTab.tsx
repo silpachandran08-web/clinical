@@ -1,5 +1,6 @@
 import { ScaleIcon } from "../DashboardIcons";
 import { recordPaymentAction } from "@/lib/actions/billing";
+import { TerminalChargeButton } from "./TerminalChargeButton";
 
 interface BillingRow {
   appointmentId: string;
@@ -27,6 +28,9 @@ interface BillingTabProps {
   collectedToday: number;
   collectedThisMonth: number;
   posTerminalName: string | null;
+  /** True when the clinic picked Geidea/Neoleap AND entered its API credentials. */
+  posConnected: boolean;
+  posProviderLabel: string | null;
   timeZone: string;
   error?: string;
   paid?: boolean;
@@ -36,11 +40,56 @@ function money(n: number) {
   return `SAR ${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+/** Cash / keyed-in POS payment — the only path when no terminal API is connected, the fallback when one is. */
+function ManualCollectForm({ row }: { row: BillingRow }) {
+  return (
+    <form
+      action={recordPaymentAction}
+      style={{
+        display: "flex",
+        flexWrap: "wrap",
+        alignItems: "flex-end",
+        gap: 10,
+        marginTop: 8,
+      }}
+    >
+      <input type="hidden" name="appointmentId" value={row.appointmentId} />
+      <label style={{ fontSize: 12 }}>
+        Amount (SAR)
+        <input
+          type="number"
+          name="amount"
+          min="0.01"
+          max={row.balance}
+          step="0.01"
+          defaultValue={row.balance}
+          required
+          style={{ width: 110 }}
+        />
+      </label>
+      <label style={{ fontSize: 12 }}>
+        Method
+        <select name="method" defaultValue="POS_CARD">
+          <option value="POS_CARD">Card — POS terminal</option>
+          <option value="CASH">Cash</option>
+        </select>
+      </label>
+      <label style={{ fontSize: 12, flex: 1, minWidth: 160 }}>
+        POS approval code (optional)
+        <input name="reference" placeholder="e.g. 048291" />
+      </label>
+      <button type="submit">Collect</button>
+    </form>
+  );
+}
+
 export function BillingTab({
   rows,
   collectedToday,
   collectedThisMonth,
   posTerminalName,
+  posConnected,
+  posProviderLabel,
   timeZone,
   error,
   paid,
@@ -75,8 +124,18 @@ export function BillingTab({
           <ScaleIcon /> Today&apos;s visits
         </h2>
         <p className="muted" style={{ marginBottom: 16 }}>
-          Card payments are charged on {terminalLabel} as usual — record the result here with the
-          approval code from the terminal slip, so the visit is marked paid.
+          {posConnected ? (
+            <>
+              Connected to {posProviderLabel} — the Charge button sends the amount straight to{" "}
+              {terminalLabel}; once the patient taps their card, the visit is marked paid
+              automatically. Cash and manual entries are still available under each visit.
+            </>
+          ) : (
+            <>
+              Card payments are charged on {terminalLabel} as usual — record the result here with
+              the approval code from the terminal slip, so the visit is marked paid.
+            </>
+          )}
         </p>
 
         {rows.length === 0 ? (
@@ -149,43 +208,26 @@ export function BillingTab({
                 )}
 
                 {row.balance > 0 && (
-                  <form
-                    action={recordPaymentAction}
-                    style={{
-                      display: "flex",
-                      flexWrap: "wrap",
-                      alignItems: "flex-end",
-                      gap: 10,
-                      marginTop: 12,
-                    }}
-                  >
-                    <input type="hidden" name="appointmentId" value={row.appointmentId} />
-                    <label style={{ fontSize: 12 }}>
-                      Amount (SAR)
-                      <input
-                        type="number"
-                        name="amount"
-                        min="0.01"
-                        max={row.balance}
-                        step="0.01"
-                        defaultValue={row.balance}
-                        required
-                        style={{ width: 110 }}
+                  <div style={{ marginTop: 12 }}>
+                    {posConnected && (
+                      <TerminalChargeButton
+                        appointmentId={row.appointmentId}
+                        amountLabel={money(row.balance)}
+                        terminalLabel={terminalLabel}
                       />
-                    </label>
-                    <label style={{ fontSize: 12 }}>
-                      Method
-                      <select name="method" defaultValue="POS_CARD">
-                        <option value="POS_CARD">Card — POS terminal</option>
-                        <option value="CASH">Cash</option>
-                      </select>
-                    </label>
-                    <label style={{ fontSize: 12, flex: 1, minWidth: 160 }}>
-                      POS approval code (optional)
-                      <input name="reference" placeholder="e.g. 048291" />
-                    </label>
-                    <button type="submit">Collect</button>
-                  </form>
+                    )}
+
+                    {posConnected ? (
+                      <details style={{ marginTop: 8 }}>
+                        <summary className="muted" style={{ fontSize: 12, cursor: "pointer" }}>
+                          Record cash / manual payment instead
+                        </summary>
+                        <ManualCollectForm row={row} />
+                      </details>
+                    ) : (
+                      <ManualCollectForm row={row} />
+                    )}
+                  </div>
                 )}
               </div>
             ))}

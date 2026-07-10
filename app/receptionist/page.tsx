@@ -12,6 +12,8 @@ import {
   searchPatients,
 } from "@/src/receptionistHandlers";
 import { getCollectedSummary, listDayBilling } from "@/src/billingHandlers";
+import { isPosConfigured } from "@/src/payments/provider";
+import { POS_PROVIDER_LABELS } from "@/src/payments/labels";
 import { AutoRefresh } from "../AutoRefresh";
 import { CalendarIcon, CheckCircleIcon, ClockIcon, StethoscopeIcon } from "../DashboardIcons";
 import { TabsNav } from "./TabsNav";
@@ -220,6 +222,8 @@ export default async function ReceptionistPage({
             collectedToday={collected.collectedToday}
             collectedThisMonth={collected.collectedThisMonth}
             posTerminalName={clinic.posTerminalName}
+            posConnected={isPosConfigured(clinic)}
+            posProviderLabel={POS_PROVIDER_LABELS[clinic.posProvider] ?? null}
             timeZone={timeZone}
             error={params.error}
             paid={params.paid === "1"}
