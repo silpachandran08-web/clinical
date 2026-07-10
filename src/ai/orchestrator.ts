@@ -61,6 +61,20 @@ export async function handleInboundMessage(params: {
     return confirmation;
   }
 
+  // Check if patient is asking to switch languages mid-conversation
+  const requestedLocale = detectLanguageSwitchRequest(params.body);
+  if (requestedLocale && requestedLocale !== state.locale) {
+    await prisma.conversation.update({ where: { id: conversation.id }, data: { state: { locale: requestedLocale } } });
+    const switchConfirmation =
+      requestedLocale === "AR"
+        ? "تمام، بنكمل بالعربي من الآن. وش تحتاج؟"
+        : "Got it, I'll continue in English from now on. How can I help?";
+    await prisma.message.create({
+      data: { conversationId: conversation.id, direction: "OUTBOUND", body: switchConfirmation },
+    });
+    return switchConfirmation;
+  }
+
   // Everything past this point calls Claude and costs money — deterministic,
   // free checks run first so abusive traffic never reaches the API at all.
   const rateLimit = await checkInboundRateLimit(params.clinic.id, params.patientPhone, params.body);
@@ -297,4 +311,39 @@ export function detectLocaleFromReply(text: string): "AR" | "EN" {
   if (/[؀-ۿ]/.test(text)) return "AR";
   if (text.toLowerCase().includes("arab")) return "AR";
   return "EN";
+}
+
+/** Detect if user is requesting to switch languages mid-conversation. */
+function detectLanguageSwitchRequest(text: string): "AR" | "EN" | null {
+  const lower = text.toLowerCase();
+  // English switch requests
+  if (
+    lower.includes("english") ||
+    lower.includes("switch to english") ||
+    lower.includes("reply in english") ||
+    lower.includes("use english") ||
+    lower.includes("english only")
+  ) {
+    return "EN";
+  }
+  // Arabic switch requests (in English)
+  if (
+    lower.includes("arabic") ||
+    lower.includes("switch to arabic") ||
+    lower.includes("reply in arabic") ||
+    lower.includes("use arabic") ||
+    lower.includes("arabic only") ||
+    lower.includes("reply in ar")
+  ) {
+    return "AR";
+  }
+  // Arabic switch requests (in Arabic) — "بالعربي" (in Arabic), "عربي" (Arabic), "غير لـ العربية" (switch to Arabic)
+  if (/بالعربي|عربي فقط|نكمل بالعربي|استخدم العربية|رد بالعربي/.test(text)) {
+    return "AR";
+  }
+  // English switch in Arabic — "بالإنجليزية" (in English), "إنجليزي" (English)
+  if (/بالإنجليزية|إنجليزي فقط|نكمل بالإنجليزي|استخدم الإنجليزية|رد بالإنجليزي/.test(text)) {
+    return "EN";
+  }
+  return null;
 }
