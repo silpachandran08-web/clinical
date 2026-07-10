@@ -1,5 +1,6 @@
 interface IconProps {
   size?: number;
+  style?: React.CSSProperties;
 }
 
 const base = {
@@ -10,9 +11,9 @@ const base = {
   strokeLinejoin: "round" as const,
 };
 
-export function StethoscopeIcon({ size = 18 }: IconProps) {
+export function StethoscopeIcon({ size = 18, style }: IconProps) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" {...base}>
+    <svg width={size} height={size} viewBox="0 0 24 24" {...base} style={style}>
       <path d="M6 4v6a4 4 0 0 0 8 0V4" />
       <path d="M6 4H4.5M14 4h1.5" />
       <path d="M14 10v2a6 6 0 0 1-12 0v-1.5" />
@@ -111,6 +112,14 @@ export function PrinterIcon({ size = 18 }: IconProps) {
       <path d="M6 9V4h12v5" />
       <rect x="4" y="9" width="16" height="8" rx="1.5" />
       <path d="M6 14h12v6H6z" />
+    </svg>
+  );
+}
+
+export function ChevronDownIcon({ size = 18, style }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...base} style={style}>
+      <path d="M6 9l6 6 6-6" />
     </svg>
   );
 }
