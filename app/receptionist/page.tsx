@@ -176,7 +176,7 @@ export default async function ReceptionistPage({
         )}
 
         {currentTab === "queue" && (
-          <QueueTab appointments={appointments} timeZone={timeZone} today={today} />
+          <QueueTab appointments={appointments} timeZone={timeZone} />
         )}
 
         {currentTab === "billing" && <BillingTab clinic={clinic} timeZone={timeZone} />}

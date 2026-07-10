@@ -90,9 +90,9 @@ export function OverviewTab({
       </div>
 
       <aside className="dashboard-sidebar">
-        <div className="card" id="doctor-availability" style={{ overflow: "visible" }}>
-          <h2 className="card-title-icon">
-            <StethoscopeIcon /> Doctor availability
+        <div className="card" id="doctor-availability" style={{ overflow: "visible", marginBottom: 0 }}>
+          <h2 className="card-title-icon" style={{ marginBottom: 14 }}>
+            <StethoscopeIcon /> Doctor Availability
           </h2>
           {todayDoctorStatus.length === 0 ? (
             <p className="empty-state">No active doctors yet.</p>

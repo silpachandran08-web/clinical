@@ -53,8 +53,8 @@ export function BookingTab({
   const hasSelectedPatient = Boolean(selectedPatientPhone);
 
   return (
-    <div style={{ maxWidth: "800px" }}>
-      <div className="card" id="find-patient">
+    <div style={{ maxWidth: "760px", margin: "0 auto" }}>
+      <div className="card" id="find-patient" style={{ marginBottom: 20 }}>
         <h2 className="card-title-icon">
           <SearchIcon /> Step 1 · Find or add a patient
         </h2>
