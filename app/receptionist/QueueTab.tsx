@@ -41,7 +41,7 @@ export function QueueTab({ appointments, timeZone }: QueueTabProps) {
 
   if (!appointments || appointments.length === 0) {
     return (
-      <div style={{ maxWidth: "700px", margin: "0 auto" }}>
+      <div>
         <div className="card">
           <div style={{ textAlign: "center", padding: "32px 24px" }}>
             <CalendarIcon size={40} style={{ color: "var(--text-muted)", marginBottom: 12, opacity: 0.5 }} />
@@ -55,7 +55,7 @@ export function QueueTab({ appointments, timeZone }: QueueTabProps) {
   }
 
   return (
-    <div style={{ maxWidth: "900px" }}>
+    <div>
       <div className="card" style={{ marginBottom: 12 }}>
         <h2 className="card-title-icon" style={{ marginBottom: 0 }}>
           <CalendarIcon /> Patient Queue

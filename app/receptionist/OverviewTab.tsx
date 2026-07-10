@@ -30,7 +30,7 @@ export function OverviewTab({
   const availableDoctors = todayDoctorStatus.filter((d) => d.isLive);
 
   return (
-    <div style={{ maxWidth: "1200px" }}>
+    <div>
       {/* ESCALATIONS - Priority Alert */}
       {escalations.length > 0 && (
         <div className="card" style={{ borderColor: "var(--warning)", borderWidth: "2px", marginBottom: 16 }}>

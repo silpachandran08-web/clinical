@@ -118,7 +118,7 @@ export default async function ReceptionistPage({
         </span>
       </div>
 
-      <div className="stat-grid" style={{ marginLeft: "24px" }}>
+      <div className="stat-grid">
         <div className="stat-card">
           <div className="stat-card-icon"><StethoscopeIcon /></div>
           <div className="stat-value">{todayDoctorStatus.length}</div>
@@ -143,7 +143,7 @@ export default async function ReceptionistPage({
 
       <TabsNav />
 
-      <div style={{ padding: "0 24px" }}>
+      <div style={{ padding: "0 24px", maxWidth: "1400px", margin: "0 auto" }}>
         {currentTab === "overview" && (
           <OverviewTab
             clinic={clinic}
