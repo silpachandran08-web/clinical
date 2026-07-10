@@ -10,6 +10,14 @@ export async function saveClinicAction(formData: FormData) {
 
   const isOpen24_7 = formData.get("isOpen24_7") === "on";
 
+  // Collect selected closed days (0=Sun, 1=Mon, ..., 6=Sat)
+  const closedDays = [];
+  for (let i = 0; i < 7; i++) {
+    if (formData.get(`closedDay_${i}`) === "on") {
+      closedDays.push(i);
+    }
+  }
+
   const payload = updateClinicSchema.parse({
     name: String(formData.get("name") ?? ""),
     whatsappNumber: String(formData.get("whatsappNumber") ?? ""),
@@ -21,6 +29,7 @@ export async function saveClinicAction(formData: FormData) {
     isOpen24_7: isOpen24_7 || undefined,
     openingTime: (String(formData.get("openingTime") ?? "") || undefined),
     closingTime: (String(formData.get("closingTime") ?? "") || undefined),
+    weekendDays: closedDays.length > 0 ? closedDays.join(",") : undefined,
   });
 
   await updateClinic(session.clinicId, payload);

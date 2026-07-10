@@ -5,10 +5,12 @@ import { saveClinicAction } from "@/lib/actions/clinic";
 import type { Clinic } from "@prisma/client";
 
 const LOCALE_LABELS: Record<string, string> = { AR: "Arabic", EN: "English" };
+const DAY_LABELS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 export function ClinicProfileForm({ clinic }: { clinic: Clinic }) {
   const [isEditing, setIsEditing] = useState(false);
   const [isOpen24_7, setIsOpen24_7] = useState(clinic.isOpen24_7);
+  const [closedDays, setClosedDays] = useState<Set<number>>(new Set(clinic.weekendDays));
   const [pending, startTransition] = useTransition();
 
   function handleSubmit(formData: FormData) {
@@ -16,6 +18,16 @@ export function ClinicProfileForm({ clinic }: { clinic: Clinic }) {
       await saveClinicAction(formData);
       setIsEditing(false);
     });
+  }
+
+  function toggleClosedDay(day: number) {
+    const newDays = new Set(closedDays);
+    if (newDays.has(day)) {
+      newDays.delete(day);
+    } else {
+      newDays.add(day);
+    }
+    setClosedDays(newDays);
   }
 
   if (!isEditing) {
@@ -40,6 +52,10 @@ export function ClinicProfileForm({ clinic }: { clinic: Clinic }) {
           <p style={{ margin: 0 }}>
             <span className="muted">Operating hours:</span>{" "}
             {clinic.isOpen24_7 ? "24/7" : `${clinic.openingTime} - ${clinic.closingTime}`}
+          </p>
+          <p style={{ margin: 0 }}>
+            <span className="muted">Closed days:</span>{" "}
+            {clinic.weekendDays.length > 0 ? clinic.weekendDays.map((d) => DAY_LABELS[d]).join(", ") : "None"}
           </p>
           <p style={{ margin: 0 }}>
             <span className="muted">Timezone:</span> {clinic.timezone}
@@ -106,6 +122,22 @@ export function ClinicProfileForm({ clinic }: { clinic: Clinic }) {
         Timezone
         <input name="timezone" defaultValue={clinic.timezone} />
       </label>
+      <fieldset style={{ border: "1px solid var(--border)", padding: 12, borderRadius: 4 }}>
+        <legend style={{ fontSize: "0.9rem", fontWeight: 600, marginBottom: 12 }}>Closed days</legend>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          {DAY_LABELS.map((label, day) => (
+            <label key={day} style={{ display: "flex", alignItems: "center", gap: 6, margin: 0 }}>
+              <input
+                type="checkbox"
+                name={`closedDay_${day}`}
+                checked={closedDays.has(day)}
+                onChange={() => toggleClosedDay(day)}
+              />
+              {label}
+            </label>
+          ))}
+        </div>
+      </fieldset>
       <label>
         Default language
         <select name="defaultLocale" defaultValue={clinic.defaultLocale}>

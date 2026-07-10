@@ -37,6 +37,12 @@ export const updateClinicSchema = z.object({
   isOpen24_7: z.boolean().optional(),
   openingTime: z.string().regex(/^\d{2}:\d{2}$/).optional(), // HH:MM format
   closingTime: z.string().regex(/^\d{2}:\d{2}$/).optional(), // HH:MM format
+  weekendDays: z.string()
+    .optional()
+    .transform((val) => {
+      if (!val) return undefined;
+      return val.split(",").map((d) => parseInt(d, 10)).filter((d) => d >= 0 && d <= 6);
+    }),
 });
 
 export const createDepartmentSchema = z.object({

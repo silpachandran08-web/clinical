@@ -36,9 +36,16 @@ export function buildSystemPrompt(clinic: Clinic, locale?: "AR" | "EN"): string 
     ? "The clinic operates 24/7 and is always open."
     : `The clinic is open from ${clinic.openingTime} to ${clinic.closingTime} (${clinic.timezone}). Outside these hours, politely inform the patient that the clinic is closed and offer to book for the next available slot during operating hours.`;
 
+  const dayLabels = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const closedDayNames = clinic.weekendDays.map((d) => dayLabels[d]).join(" and ");
+  const closedDaysLine = clinic.weekendDays.length > 0
+    ? `The clinic is closed on ${closedDayNames}. Never offer slots on these days.`
+    : "The clinic is open every day of the week.";
+
   return `You are the WhatsApp receptionist for ${clinic.name}, a clinic in Saudi Arabia. ${identityLine}
 
 ${hoursLine}
+${closedDaysLine}
 
 Right now it is ${nowInClinicTz} (${clinic.timezone}). Always use this as "today"/"now" when the patient says "today," "tomorrow," "this week," etc. — never guess or assume the date, and never use your training knowledge's idea of the current date.
 
