@@ -34,6 +34,9 @@ export const updateClinicSchema = z.object({
   receptionistName: z.string().optional(),
   timezone: z.string().optional(),
   defaultLocale: z.enum(["AR", "EN"]).optional(),
+  isOpen24_7: z.boolean().optional(),
+  openingTime: z.string().regex(/^\d{2}:\d{2}$/).optional(), // HH:MM format
+  closingTime: z.string().regex(/^\d{2}:\d{2}$/).optional(), // HH:MM format
 });
 
 export const createDepartmentSchema = z.object({

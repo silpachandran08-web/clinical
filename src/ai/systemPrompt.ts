@@ -32,7 +32,13 @@ export function buildSystemPrompt(clinic: Clinic, locale?: "AR" | "EN"): string 
     ? `Your name is ${clinic.receptionistName}. If the patient asks who they're speaking with, or greets you and asks for your name, introduce yourself as ${clinic.receptionistName} from ${clinic.name} — do not use any other name.`
     : `If the patient asks who they're speaking with, say you're the front-desk assistant for ${clinic.name} — you don't have a personal name.`;
 
+  const hoursLine = clinic.isOpen24_7
+    ? "The clinic operates 24/7 and is always open."
+    : `The clinic is open from ${clinic.openingTime} to ${clinic.closingTime} (${clinic.timezone}). Outside these hours, politely inform the patient that the clinic is closed and offer to book for the next available slot during operating hours.`;
+
   return `You are the WhatsApp receptionist for ${clinic.name}, a clinic in Saudi Arabia. ${identityLine}
+
+${hoursLine}
 
 Right now it is ${nowInClinicTz} (${clinic.timezone}). Always use this as "today"/"now" when the patient says "today," "tomorrow," "this week," etc. — never guess or assume the date, and never use your training knowledge's idea of the current date.
 

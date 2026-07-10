@@ -8,6 +8,7 @@ const LOCALE_LABELS: Record<string, string> = { AR: "Arabic", EN: "English" };
 
 export function ClinicProfileForm({ clinic }: { clinic: Clinic }) {
   const [isEditing, setIsEditing] = useState(false);
+  const [isOpen24_7, setIsOpen24_7] = useState(clinic.isOpen24_7);
   const [pending, startTransition] = useTransition();
 
   function handleSubmit(formData: FormData) {
@@ -35,6 +36,10 @@ export function ClinicProfileForm({ clinic }: { clinic: Clinic }) {
           </p>
           <p style={{ margin: 0 }}>
             <span className="muted">Receptionist name (WhatsApp AI):</span> {clinic.receptionistName ?? "—"}
+          </p>
+          <p style={{ margin: 0 }}>
+            <span className="muted">Operating hours:</span>{" "}
+            {clinic.isOpen24_7 ? "24/7" : `${clinic.openingTime} - ${clinic.closingTime}`}
           </p>
           <p style={{ margin: 0 }}>
             <span className="muted">Timezone:</span> {clinic.timezone}
@@ -76,6 +81,27 @@ export function ClinicProfileForm({ clinic }: { clinic: Clinic }) {
           placeholder="e.g. Sara — the AI introduces itself with this name"
         />
       </label>
+      <label>
+        <input
+          type="checkbox"
+          name="isOpen24_7"
+          defaultChecked={clinic.isOpen24_7}
+          onChange={(e) => setIsOpen24_7(e.target.checked)}
+        />
+        Clinic operates 24/7
+      </label>
+      {!isOpen24_7 && (
+        <>
+          <label>
+            Opening time
+            <input type="time" name="openingTime" defaultValue={clinic.openingTime ?? "08:00"} />
+          </label>
+          <label>
+            Closing time
+            <input type="time" name="closingTime" defaultValue={clinic.closingTime ?? "18:00"} />
+          </label>
+        </>
+      )}
       <label>
         Timezone
         <input name="timezone" defaultValue={clinic.timezone} />

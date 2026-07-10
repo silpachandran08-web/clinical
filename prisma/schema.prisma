@@ -96,6 +96,9 @@ model Clinic {
   receptionistName   String?            // name the WhatsApp AI introduces itself as, e.g. "Sara" — null falls back to a generic role-based introduction
   timezone           String             @default("Asia/Riyadh")
   defaultLocale      Locale             @default(AR)
+  isOpen24_7         Boolean            @default(false) // true = clinic operates 24/7, ignore openingTime/closingTime
+  openingTime        String?            @default("08:00") // "HH:MM" format when isOpen24_7 is false
+  closingTime        String?            @default("18:00") // "HH:MM" format when isOpen24_7 is false
   whatsappNumber     String?            @unique // null until the clinic configures WhatsApp
   // Per-clinic Meta WhatsApp Cloud API credentials — lets each clinic run
   // its own WhatsApp Business number/app instead of one global env-var

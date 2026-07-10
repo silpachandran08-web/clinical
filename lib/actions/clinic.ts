@@ -8,6 +8,8 @@ export async function saveClinicAction(formData: FormData) {
   const session = await getSession();
   if (!session) throw new Error("Not authenticated");
 
+  const isOpen24_7 = formData.get("isOpen24_7") === "on";
+
   const payload = updateClinicSchema.parse({
     name: String(formData.get("name") ?? ""),
     whatsappNumber: String(formData.get("whatsappNumber") ?? ""),
@@ -16,6 +18,9 @@ export async function saveClinicAction(formData: FormData) {
     receptionistName: String(formData.get("receptionistName") ?? "") || undefined,
     timezone: String(formData.get("timezone") ?? "") || undefined,
     defaultLocale: (String(formData.get("defaultLocale") ?? "") || undefined) as "AR" | "EN" | undefined,
+    isOpen24_7: isOpen24_7 || undefined,
+    openingTime: (String(formData.get("openingTime") ?? "") || undefined),
+    closingTime: (String(formData.get("closingTime") ?? "") || undefined),
   });
 
   await updateClinic(session.clinicId, payload);
