@@ -11,6 +11,7 @@ import {
   listWeekSlots,
   searchPatients,
 } from "@/src/receptionistHandlers";
+import { getCollectedSummary, listDayBilling } from "@/src/billingHandlers";
 import { AutoRefresh } from "../AutoRefresh";
 import { CalendarIcon, CheckCircleIcon, ClockIcon, StethoscopeIcon } from "../DashboardIcons";
 import { TabsNav } from "./TabsNav";
@@ -33,6 +34,7 @@ type ReceptionistParams = {
   week?: string;
   slotId?: string;
   tab?: string;
+  paid?: string;
 };
 
 export default async function ReceptionistPage({
@@ -63,8 +65,9 @@ export default async function ReceptionistPage({
   // other dataset belongs to a single tab, so only the active tab pays for
   // its own queries (this page re-renders on every AutoRefresh poll).
   const isBooking = currentTab === "booking";
+  const isBilling = currentTab === "billing";
   const needsDoctorList = isBooking || currentTab === "doctors";
-  const [appointments, todayDoctorStatus, allDoctors, escalations, week, patientResults] = await Promise.all([
+  const [appointments, todayDoctorStatus, allDoctors, escalations, week, patientResults, billingRows, collected] = await Promise.all([
     listTodayAppointments(session.clinicId, timeZone),
     listDoctorsStatusForDay(session.clinicId, today),
     needsDoctorList ? listDoctors(session.clinicId) : Promise.resolve([]),
@@ -73,6 +76,10 @@ export default async function ReceptionistPage({
       ? listWeekSlots(session.clinicId, selectedDoctorId, weekStart)
       : Promise.resolve([]),
     isBooking && patientQuery ? searchPatients(session.clinicId, patientQuery) : Promise.resolve([]),
+    isBilling ? listDayBilling(session.clinicId, timeZone) : Promise.resolve([]),
+    isBilling
+      ? getCollectedSummary(session.clinicId, timeZone)
+      : Promise.resolve({ collectedToday: 0, collectedThisMonth: 0 }),
   ]);
 
   // Doctors tab: multi-week slot grids (current week + 3 ahead), all doctors
@@ -207,7 +214,17 @@ export default async function ReceptionistPage({
           <QueueTab appointments={appointments} timeZone={timeZone} />
         )}
 
-        {currentTab === "billing" && <BillingTab clinic={clinic} timeZone={timeZone} />}
+        {currentTab === "billing" && (
+          <BillingTab
+            rows={billingRows}
+            collectedToday={collected.collectedToday}
+            collectedThisMonth={collected.collectedThisMonth}
+            posTerminalName={clinic.posTerminalName}
+            timeZone={timeZone}
+            error={params.error}
+            paid={params.paid === "1"}
+          />
+        )}
       </div>
     </div>
   );

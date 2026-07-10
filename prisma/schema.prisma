@@ -95,6 +95,30 @@ enum ChargeCategory {
   OTHER
 }
 
+// Which acquirer's terminal API pushes amounts to the physical POS device.
+// MANUAL = staff charge the standalone terminal themselves and key in the
+// approval code; the bank/PSP values are reserved for the planned terminal
+// (ECR) integrations.
+enum PosProvider {
+  MANUAL
+  GEIDEA
+  NEOLEAP
+}
+
+enum PaymentMethod {
+  POS_CARD
+  CASH
+}
+
+// PENDING/FAILED only occur once a terminal API is wired in (amount pushed
+// to the device, awaiting tap); manual recording always writes PAID.
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
 model Clinic {
   id                 String             @id @default(cuid())
   name               String
@@ -117,6 +141,8 @@ model Clinic {
   whatsappAppSecret     String?
   whatsappVerifyToken   String?
   weekendDays        Int[]              @default([5, 6]) // Fri=5, Sat=6 (0=Sun..6=Sat)
+  posProvider        PosProvider        @default(MANUAL)
+  posTerminalName    String?            // front-desk label for the physical terminal, e.g. "Front desk mada terminal"
   integrationMode    IntegrationMode    @default(NATIVE)
   integrationConfig  Json?              // adapter-specific connection details
   trialEndsAt        DateTime
@@ -131,6 +157,7 @@ model Clinic {
   conversations Conversation[]
   transactions  Transaction[]
   escalations   StaffEscalation[]
+  payments      Payment[]
 }
 
 model Transaction {
@@ -160,6 +187,8 @@ model User {
   doctorId  String?  @unique // set only when role = DOCTOR, links to their Doctor row
   doctor    Doctor?  @relation(fields: [doctorId], references: [id])
   createdAt DateTime @default(now())
+
+  paymentsRecorded Payment[]
 
   @@index([clinicId])
 }
@@ -300,8 +329,30 @@ model Appointment {
 
   consultation Consultation?
   charges      AppointmentCharge[]
+  payments     Payment[]
 
   @@index([clinicId, status])
+}
+
+// Money actually collected against an appointment (consultation fee plus
+// any AppointmentCharges). Multiple rows per appointment allow split
+// payments — e.g. part cash, part card on the POS terminal.
+model Payment {
+  id            String        @id @default(cuid())
+  clinicId      String
+  clinic        Clinic        @relation(fields: [clinicId], references: [id])
+  appointmentId String
+  appointment   Appointment   @relation(fields: [appointmentId], references: [id])
+  amount        Decimal       @db.Decimal(10, 2)
+  method        PaymentMethod
+  status        PaymentStatus @default(PAID)
+  reference     String?       // POS approval code / receipt number from the terminal
+  recordedById  String?
+  recordedBy    User?         @relation(fields: [recordedById], references: [id])
+  createdAt     DateTime      @default(now())
+
+  @@index([clinicId, createdAt])
+  @@index([appointmentId])
 }
 
 // Additional charges applied to an appointment (lab work, procedures, medications)
