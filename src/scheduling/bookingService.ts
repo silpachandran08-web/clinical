@@ -41,6 +41,14 @@ export interface BookSlotParams {
  * is still OPEN, so two patients racing for the same slot can never both
  * succeed — the loser gets SlotUnavailableError and the orchestrator offers
  * alternatives instead of silently double-booking the doctor.
+ *
+ * Also supersedes, not stacks: a patient who already has a CONFIRMED
+ * appointment with this same doctor and books another (e.g. "actually can
+ * I get an earlier time") has the old one cancelled and its slot freed in
+ * the same transaction — one active appointment per patient per doctor,
+ * whether the rebooking came from the WhatsApp AI or a receptionist walk-in.
+ * Deliberately scoped to CONFIRMED only: a CHECKED_IN/IN_PROGRESS visit is
+ * happening right now and should never be silently replaced.
  */
 export async function bookSlot(params: BookSlotParams) {
   return prisma.$transaction(async (tx) => {
@@ -61,6 +69,15 @@ export async function bookSlot(params: BookSlotParams) {
       update: { name: params.patientName },
       create: { clinicId: params.clinicId, phone: params.patientPhone, name: params.patientName },
     });
+
+    const superseded = await tx.appointment.findMany({
+      where: { clinicId: params.clinicId, patientId: patient.id, doctorId: slot.doctorId, status: "CONFIRMED" },
+      select: { id: true, slotId: true },
+    });
+    for (const old of superseded) {
+      await tx.appointment.update({ where: { id: old.id }, data: { status: "CANCELLED" } });
+      await tx.slot.update({ where: { id: old.slotId }, data: { status: "OPEN" } });
+    }
 
     const appointment = await tx.appointment.create({
       data: {

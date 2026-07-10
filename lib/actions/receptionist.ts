@@ -7,8 +7,11 @@ import {
   checkInAppointment,
   createPatient,
   createPatientSchema,
+  getEscalationPatientPhone,
   resolveEscalation,
 } from "@/src/receptionistHandlers";
+import { getClinic } from "@/src/adminHandlers";
+import { handleStaffInstruction } from "@/src/ai/orchestrator";
 import { getSession } from "@/lib/session";
 
 export async function checkInAction(formData: FormData) {
@@ -25,6 +28,32 @@ export async function resolveEscalationAction(formData: FormData) {
   if (!session) throw new Error("Not authenticated");
 
   const escalationId = String(formData.get("escalationId"));
+  await resolveEscalation(session.clinicId, escalationId);
+  revalidatePath("/receptionist");
+}
+
+/**
+ * The receptionist's alternative to manually chatting on WhatsApp: hand the
+ * AI a plain-English instruction and let it carry the conversation forward
+ * (with the clinic's real tools — it can actually book the slot staff
+ * describe, not just say it will). Resolves the escalation on success since
+ * the AI owns the conversation again; if it needs staff again later, a new
+ * escalation will naturally appear via escalate_to_human.
+ */
+export async function sendStaffInstructionAction(formData: FormData) {
+  const session = await getSession();
+  if (!session) throw new Error("Not authenticated");
+
+  const escalationId = String(formData.get("escalationId"));
+  const instruction = String(formData.get("instruction") ?? "").trim();
+  if (!instruction) throw new Error("Instruction cannot be empty");
+
+  const [patientPhone, clinic] = await Promise.all([
+    getEscalationPatientPhone(session.clinicId, escalationId),
+    getClinic(session.clinicId),
+  ]);
+
+  await handleStaffInstruction({ clinic, patientPhone, instruction });
   await resolveEscalation(session.clinicId, escalationId);
   revalidatePath("/receptionist");
 }

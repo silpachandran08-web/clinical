@@ -2,7 +2,9 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { Clinic } from "@prisma/client";
 import { env } from "../config/env";
 import { prisma } from "../db/client";
+import { createWhatsAppProvider } from "../whatsapp/index";
 import { buildSystemPrompt } from "./systemPrompt";
+import { checkInboundRateLimit, rateLimitReplyText } from "./rateLimiter";
 import { runTool, toolDefinitions } from "./tools";
 
 const anthropic = new Anthropic({ apiKey: env.anthropicApiKey });
@@ -59,6 +61,87 @@ export async function handleInboundMessage(params: {
     return confirmation;
   }
 
+  // Everything past this point calls Claude and costs money — deterministic,
+  // free checks run first so abusive traffic never reaches the API at all.
+  const rateLimit = await checkInboundRateLimit(params.clinic.id, params.patientPhone, params.body);
+  if (!rateLimit.allowed) {
+    if (rateLimit.reason !== "too_long") {
+      await createEscalationIfNoneOpen(
+        params.clinic.id,
+        params.patientPhone,
+        `Sent an unusually high number of messages (${rateLimit.reason} limit) — check for abuse or a patient who needs a phone call instead.`,
+      );
+    }
+    const reply = rateLimitReplyText(rateLimit.reason, state.locale);
+    await prisma.message.create({
+      data: { conversationId: conversation.id, direction: "OUTBOUND", body: reply },
+    });
+    return reply;
+  }
+
+  const finalText = await runAssistantTurn({
+    clinic: params.clinic,
+    patientPhone: params.patientPhone,
+    conversationId: conversation.id,
+    locale: state.locale,
+  });
+
+  await prisma.message.create({
+    data: { conversationId: conversation.id, direction: "OUTBOUND", body: finalText },
+  });
+
+  return finalText;
+}
+
+/**
+ * Lets a receptionist hand a stuck conversation back to the AI instead of
+ * taking it over manually: staff type an instruction ("book her the
+ * earliest slot with Dr. Fathima tomorrow"), and the AI re-runs against the
+ * SAME conversation history — ending on the patient's last message, same as
+ * a normal turn — with that instruction as a one-off directive, then sends
+ * the result to the patient itself (there's no inbound webhook request here
+ * to piggyback a reply on, so this owns the WhatsApp send end-to-end).
+ */
+export async function handleStaffInstruction(params: {
+  clinic: Clinic;
+  patientPhone: string;
+  instruction: string;
+}): Promise<string> {
+  const conversationId = await findConversationId(params.clinic.id, params.patientPhone);
+  if (!conversationId) {
+    throw new Error("No conversation found for this patient — nothing for the AI to continue");
+  }
+  const conversation = await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } });
+  const state = (conversation.state as { locale?: "AR" | "EN" } | null) ?? {};
+  const locale = state.locale ?? "EN";
+
+  const finalText = await runAssistantTurn({
+    clinic: params.clinic,
+    patientPhone: params.patientPhone,
+    conversationId,
+    locale,
+    staffInstruction: params.instruction,
+  });
+
+  await prisma.message.create({
+    data: { conversationId, direction: "OUTBOUND", body: finalText },
+  });
+  await prisma.conversation.update({ where: { id: conversationId }, data: { lastMessageAt: new Date() } });
+
+  const provider = createWhatsAppProvider(params.clinic);
+  await provider.sendMessage(params.patientPhone, finalText);
+
+  return finalText;
+}
+
+/** The Claude tool-use loop shared by a normal inbound reply and a staff-instructed one — same history, same tools, same cost controls. */
+async function runAssistantTurn(params: {
+  clinic: Clinic;
+  patientPhone: string;
+  conversationId: string;
+  locale: "AR" | "EN";
+  staffInstruction?: string;
+}): Promise<string> {
   // The most RECENT window, not the oldest: `asc` + take would return the
   // first 20 messages ever, so once a conversation grew past the window the
   // just-received patient message wasn't even included and the history ended
@@ -66,7 +149,7 @@ export async function handleInboundMessage(params: {
   // with a user message"), silently killing replies on long conversations.
   const priorMessages = (
     await prisma.message.findMany({
-      where: { conversationId: conversation.id },
+      where: { conversationId: params.conversationId },
       orderBy: { createdAt: "desc" },
       take: HISTORY_MESSAGES,
     })
@@ -101,13 +184,22 @@ export async function handleInboundMessage(params: {
     i === toolDefinitions.length - 1 ? { ...t, cache_control: { type: "ephemeral" } } : t,
   );
 
+  // The staff directive is deliberately its own, uncached system block: it's
+  // one-off and small, so appending it after the cached prompt block doesn't
+  // disturb that block's cache hits on ordinary turns (where this is absent).
   const system: Anthropic.TextBlockParam[] = [
     {
       type: "text",
-      text: buildSystemPrompt(params.clinic, state.locale),
+      text: buildSystemPrompt(params.clinic, params.locale),
       cache_control: { type: "ephemeral" },
     },
   ];
+  if (params.staffInstruction) {
+    system.push({
+      type: "text",
+      text: `Clinic staff have reviewed this conversation and left this instruction for your next reply: "${params.staffInstruction}". Follow it, respond to the patient's last message accordingly (using tools as needed), and don't mention that staff sent an instruction — just help the patient.`,
+    });
+  }
 
   let finalText = "";
 
@@ -169,24 +261,27 @@ export async function handleInboundMessage(params: {
     // This fallback promises staff follow-up, so make that promise real the
     // same way the escalate_to_human tool does — otherwise nobody would ever
     // see that this conversation dead-ended.
-    await prisma.staffEscalation.create({
-      data: {
-        clinicId: params.clinic.id,
-        patientPhone: params.patientPhone,
-        reason: "AI conversation could not complete — needs staff follow-up",
-      },
-    });
+    await createEscalationIfNoneOpen(
+      params.clinic.id,
+      params.patientPhone,
+      "AI conversation could not complete — needs staff follow-up",
+    );
     finalText =
-      state.locale === "AR"
+      params.locale === "AR"
         ? "عذرًا، سأحوّل طلبك إلى أحد موظفي العيادة وسيتواصلون معك هنا قريبًا."
         : "Sorry, I've passed this to our clinic staff — they'll get back to you here shortly.";
   }
 
-  await prisma.message.create({
-    data: { conversationId: conversation.id, direction: "OUTBOUND", body: finalText },
-  });
-
   return finalText;
+}
+
+/** Avoids piling up duplicate escalations for the same patient while one is still OPEN (e.g. repeated rate-limit trips, or hitting the tool-round limit more than once before staff respond). */
+async function createEscalationIfNoneOpen(clinicId: string, patientPhone: string, reason: string): Promise<void> {
+  const existing = await prisma.staffEscalation.findFirst({
+    where: { clinicId, patientPhone, status: "OPEN" },
+  });
+  if (existing) return;
+  await prisma.staffEscalation.create({ data: { clinicId, patientPhone, reason } });
 }
 
 async function findConversationId(clinicId: string, patientPhone: string): Promise<string | null> {

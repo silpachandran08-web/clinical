@@ -666,16 +666,22 @@ tbody tr:last-child td {
 
 .escalation-row {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 10px;
+  flex-direction: column;
+  gap: 8px;
   padding: 10px 0;
   border-bottom: 1px solid var(--border-soft);
 }
 .escalation-row:last-child {
   border-bottom: none;
   padding-bottom: 0;
+}
+
+.escalation-row-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .escalation-info {
@@ -688,6 +694,18 @@ tbody tr:last-child td {
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
+}
+
+.escalation-instruct-form {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-left: 20px;
+}
+.escalation-instruct-form input[type="text"] {
+  flex: 1;
+  min-width: 220px;
 }
 
 /* --- Live availability dot (front desk) / toggle (doctor dashboard) — green

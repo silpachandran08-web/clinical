@@ -220,6 +220,16 @@ export async function resolveEscalation(clinicId: string, escalationId: string) 
   }
 }
 
+/** Looks up which patient an escalation is about, scoped by clinicId — used to hand the conversation back to the AI with a staff instruction. */
+export async function getEscalationPatientPhone(clinicId: string, escalationId: string): Promise<string> {
+  const escalation = await prisma.staffEscalation.findFirst({
+    where: { id: escalationId, clinicId },
+    select: { patientPhone: true },
+  });
+  if (!escalation) throw new Error("Escalation not found");
+  return escalation.patientPhone;
+}
+
 export const createPatientSchema = z.object({
   name: z.string().min(1),
   phone: z.string().min(1),

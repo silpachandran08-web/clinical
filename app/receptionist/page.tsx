@@ -14,6 +14,7 @@ import {
 } from "@/src/receptionistHandlers";
 import { addPatientAction, checkInAction, resolveEscalationAction } from "@/lib/actions/receptionist";
 import { WeekSlotPicker } from "./WeekSlotPicker";
+import { EscalationInstructionForm } from "./EscalationInstructionForm";
 import { AutoRefresh } from "../AutoRefresh";
 import {
   AlertIcon,
@@ -167,42 +168,45 @@ export default async function ReceptionistPage({
               <div className="escalation-list">
                 {escalations.map((e) => (
                   <div className="escalation-row" key={e.id}>
-                    <div className="escalation-info">
-                      <div className="schedule-patient">
-                        <PatientIcon size={14} />
-                        <span>{e.patientName ?? e.patientPhone}</span>
-                        {e.urgent && <span className="badge danger">URGENT</span>}
-                        <span className="muted" style={{ fontSize: 11.5, fontWeight: 500 }}>
-                          {e.createdAt.toLocaleString(undefined, {
-                            month: "short",
-                            day: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                            timeZone,
-                          })}
-                        </span>
+                    <div className="escalation-row-top">
+                      <div className="escalation-info">
+                        <div className="schedule-patient">
+                          <PatientIcon size={14} />
+                          <span>{e.patientName ?? e.patientPhone}</span>
+                          {e.urgent && <span className="badge danger">URGENT</span>}
+                          <span className="muted" style={{ fontSize: 11.5, fontWeight: 500 }}>
+                            {e.createdAt.toLocaleString(undefined, {
+                              month: "short",
+                              day: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              timeZone,
+                            })}
+                          </span>
+                        </div>
+                        <div className="muted" style={{ fontSize: 12.5, paddingLeft: 20 }}>
+                          {e.reason}
+                          {e.patientName && <> · {e.patientPhone}</>}
+                        </div>
                       </div>
-                      <div className="muted" style={{ fontSize: 12.5, paddingLeft: 20 }}>
-                        {e.reason}
-                        {e.patientName && <> · {e.patientPhone}</>}
+                      <div className="escalation-actions">
+                        <a
+                          className="btn-link"
+                          href={`https://wa.me/${e.patientPhone.replace("+", "")}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          Reply on WhatsApp
+                        </a>
+                        <form action={resolveEscalationAction}>
+                          <input type="hidden" name="escalationId" value={e.id} />
+                          <button type="submit" className="secondary">
+                            Mark handled
+                          </button>
+                        </form>
                       </div>
                     </div>
-                    <div className="escalation-actions">
-                      <a
-                        className="btn-link"
-                        href={`https://wa.me/${e.patientPhone.replace("+", "")}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        Reply on WhatsApp
-                      </a>
-                      <form action={resolveEscalationAction}>
-                        <input type="hidden" name="escalationId" value={e.id} />
-                        <button type="submit" className="secondary">
-                          Mark handled
-                        </button>
-                      </form>
-                    </div>
+                    <EscalationInstructionForm escalationId={e.id} />
                   </div>
                 ))}
               </div>
