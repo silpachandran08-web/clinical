@@ -34,6 +34,9 @@ export function ClinicProfileForm({ clinic }: { clinic: Clinic }) {
             <span className="muted">Phone:</span> {clinic.phone ?? "—"}
           </p>
           <p style={{ margin: 0 }}>
+            <span className="muted">Receptionist name (WhatsApp AI):</span> {clinic.receptionistName ?? "—"}
+          </p>
+          <p style={{ margin: 0 }}>
             <span className="muted">Timezone:</span> {clinic.timezone}
           </p>
           <p style={{ margin: 0 }}>
@@ -64,6 +67,14 @@ export function ClinicProfileForm({ clinic }: { clinic: Clinic }) {
       <label>
         Phone (shown on printed prescriptions)
         <input name="phone" defaultValue={clinic.phone ?? ""} placeholder="e.g. +966 11 234 5678" />
+      </label>
+      <label>
+        Receptionist name (WhatsApp AI)
+        <input
+          name="receptionistName"
+          defaultValue={clinic.receptionistName ?? ""}
+          placeholder="e.g. Sara — the AI introduces itself with this name"
+        />
       </label>
       <label>
         Timezone

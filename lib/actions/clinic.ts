@@ -13,6 +13,7 @@ export async function saveClinicAction(formData: FormData) {
     whatsappNumber: String(formData.get("whatsappNumber") ?? ""),
     address: String(formData.get("address") ?? "") || undefined,
     phone: String(formData.get("phone") ?? "") || undefined,
+    receptionistName: String(formData.get("receptionistName") ?? "") || undefined,
     timezone: String(formData.get("timezone") ?? "") || undefined,
     defaultLocale: (String(formData.get("defaultLocale") ?? "") || undefined) as "AR" | "EN" | undefined,
   });

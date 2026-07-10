@@ -93,6 +93,7 @@ model Clinic {
   name               String
   address            String?            // shown on printed prescriptions alongside the clinic name
   phone              String?            // shown on printed prescriptions alongside the clinic name
+  receptionistName   String?            // name the WhatsApp AI introduces itself as, e.g. "Sara" — null falls back to a generic role-based introduction
   timezone           String             @default("Asia/Riyadh")
   defaultLocale      Locale             @default(AR)
   whatsappNumber     String?            @unique // null until the clinic configures WhatsApp

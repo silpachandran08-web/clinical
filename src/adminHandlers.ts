@@ -31,6 +31,7 @@ export const updateClinicSchema = z.object({
   whatsappNumber: z.string().min(1).transform(normalizeWhatsAppNumber),
   address: z.string().optional(),
   phone: z.string().optional(),
+  receptionistName: z.string().optional(),
   timezone: z.string().optional(),
   defaultLocale: z.enum(["AR", "EN"]).optional(),
 });
