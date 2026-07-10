@@ -123,3 +123,19 @@ export function ChevronDownIcon({ size = 18, style }: IconProps) {
     </svg>
   );
 }
+
+export function ChevronLeftIcon({ size = 18, style }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...base} style={style}>
+      <path d="M15 6l-6 6 6 6" />
+    </svg>
+  );
+}
+
+export function ChevronRightIcon({ size = 18, style }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...base} style={style}>
+      <path d="M9 6l6 6-6 6" />
+    </svg>
+  );
+}

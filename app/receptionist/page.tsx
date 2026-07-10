@@ -19,6 +19,7 @@ import { OverviewTab } from "./OverviewTab";
 import { BookingTab } from "./BookingTab";
 import { QueueTab } from "./QueueTab";
 import { BillingTab } from "./BillingTab";
+import { DoctorsTab } from "./DoctorsTab";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -32,6 +33,7 @@ type ReceptionistParams = {
   patientPhone?: string;
   week?: string;
   statusDay?: string;
+  slotId?: string;
   tab?: string;
 };
 
@@ -78,6 +80,34 @@ export default async function ReceptionistPage({
     listOpenEscalations(session.clinicId),
   ]);
   const doctorStatus = browsedDoctorStatus ?? todayDoctorStatus;
+
+  // Fetch multi-week slots for Doctors tab (current week + 3 weeks ahead)
+  const currentWeekStart = getWeekStart(undefined, timeZone);
+  const doctorsWithWeeks = await Promise.all(
+    allDoctors
+      .filter((d) => d.active)
+      .map(async (doc) => {
+        const weeksData = [];
+        for (let i = 0; i < 4; i++) {
+          const weekStart = new Date(
+            currentWeekStart.getTime() + i * 7 * 24 * 60 * 60 * 1000
+          );
+          const weekEnd = new Date(
+            weekStart.getTime() + 7 * 24 * 60 * 60 * 1000
+          );
+          const slots = await listWeekSlots(session.clinicId, doc.id, weekStart);
+          const weekLabel = `${weekStart.toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone })} – ${weekEnd.toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone })}`;
+          weeksData.push({ weekStart, weekLabel, days: slots });
+        }
+        return {
+          id: doc.id,
+          name: doc.name,
+          department: doc.department,
+          isLive: todayDoctorStatus.find((d) => d.id === doc.id)?.isLive ?? false,
+          weeksData,
+        };
+      })
+  );
 
   const activeDoctors = allDoctors.filter((d) => d.active);
   const selectedDoctorId = params.doctorId ?? "";
@@ -154,6 +184,10 @@ export default async function ReceptionistPage({
           />
         )}
 
+        {currentTab === "doctors" && (
+          <DoctorsTab clinic={clinic} doctors={doctorsWithWeeks} />
+        )}
+
         {currentTab === "booking" && (
           <BookingTab
             clinic={clinic}
@@ -172,6 +206,7 @@ export default async function ReceptionistPage({
             now={now}
             slotQueryFn={slotQuery}
             params={params}
+            preSelectedSlotId={params.slotId}
           />
         )}
 

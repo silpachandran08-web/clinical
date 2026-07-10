@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { bookWalkInAction } from "@/lib/actions/receptionist";
 
 export interface DaySlot {
@@ -21,13 +21,27 @@ export function WeekSlotPicker({
   doctorId,
   patientName,
   patientPhone,
+  preSelectedSlotId,
 }: {
   days: DayRow[];
   doctorId: string;
   patientName: string;
   patientPhone: string;
+  preSelectedSlotId?: string;
 }) {
   const [selected, setSelected] = useState<{ id: string; label: string } | null>(null);
+
+  useEffect(() => {
+    if (preSelectedSlotId) {
+      for (const day of days) {
+        const slot = day.slots.find((s) => s.id === preSelectedSlotId);
+        if (slot) {
+          setSelected({ id: slot.id, label: `${day.label} ${day.sub}, ${slot.time}` });
+          break;
+        }
+      }
+    }
+  }, [preSelectedSlotId, days]);
   const [pending, startTransition] = useTransition();
 
   function handleSave() {

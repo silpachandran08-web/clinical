@@ -2,10 +2,11 @@
 
 import { useSearchParams } from "next/navigation";
 
-type TabId = "overview" | "booking" | "queue" | "billing";
+type TabId = "overview" | "doctors" | "booking" | "queue" | "billing";
 
 const TABS: Array<{ id: TabId; label: string }> = [
   { id: "overview", label: "Overview" },
+  { id: "doctors", label: "Doctors" },
   { id: "booking", label: "Booking" },
   { id: "queue", label: "Queue" },
   { id: "billing", label: "Billing" },

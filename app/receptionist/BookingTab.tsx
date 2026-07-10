@@ -29,6 +29,7 @@ interface BookingTabProps {
     week?: string;
   }) => string;
   params: Record<string, any>;
+  preSelectedSlotId?: string;
 }
 
 export function BookingTab({
@@ -48,6 +49,7 @@ export function BookingTab({
   now,
   slotQueryFn,
   params,
+  preSelectedSlotId,
 }: BookingTabProps) {
   const activeDoctors = allDoctors.filter((d) => d.active);
   const hasSelectedPatient = Boolean(selectedPatientPhone);
@@ -235,6 +237,7 @@ export function BookingTab({
                   doctorId={selectedDoctorId}
                   patientName={selectedPatientName}
                   patientPhone={selectedPatientPhone}
+                  preSelectedSlotId={preSelectedSlotId}
                   days={week.map((day: any) => ({
                     label: day.date.toLocaleDateString(undefined, { weekday: "short", timeZone }),
                     sub: day.date.toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone }),
