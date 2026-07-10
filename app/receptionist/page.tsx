@@ -211,7 +211,6 @@ export default async function ReceptionistPage({
             canGoBack={canGoBack}
             timeZone={timeZone}
             now={now.toISOString()}
-            slotQueryFn={slotQuery}
             params={params}
             preSelectedSlotId={params.slotId}
           />

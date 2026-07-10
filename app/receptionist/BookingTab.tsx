@@ -24,12 +24,6 @@ interface BookingTabProps {
   canGoBack: boolean;
   timeZone: string;
   now: string;
-  slotQueryFn: (params: {
-    doctorId: string;
-    patientName: string;
-    patientPhone: string;
-    week?: string;
-  }) => string;
   params: Record<string, any>;
   preSelectedSlotId?: string;
 }
@@ -55,7 +49,6 @@ export function BookingTab({
   canGoBack,
   timeZone,
   now: nowStr,
-  slotQueryFn,
   params,
   preSelectedSlotId,
 }: BookingTabProps) {
@@ -147,6 +140,21 @@ export function BookingTab({
   };
 
   const hasSelectedPatient = selectedPatient !== null;
+
+  const buildSlotUrl = (params: {
+    doctorId: string;
+    patientName: string;
+    patientPhone: string;
+    week?: string;
+  }) => {
+    const q = new URLSearchParams();
+    q.set("tab", "booking");
+    q.set("doctorId", params.doctorId);
+    if (params.patientName) q.set("patientName", params.patientName);
+    if (params.patientPhone) q.set("patientPhone", params.patientPhone);
+    if (params.week) q.set("week", params.week);
+    return `/receptionist?${q.toString()}#assign-doctor`;
+  };
 
   return (
     <div className="card" id="assign-doctor">
@@ -363,7 +371,7 @@ export function BookingTab({
                 <a
                   href={
                     canGoBack
-                      ? slotQueryFn({
+                      ? buildSlotUrl({
                           doctorId: selectedDoctor,
                           patientName: selectedPatient.name ?? selectedPatient.phone,
                           patientPhone: selectedPatient.phone,
@@ -386,7 +394,7 @@ export function BookingTab({
                   })}
                 </span>
                 <a
-                  href={slotQueryFn({
+                  href={buildSlotUrl({
                     doctorId: selectedDoctor,
                     patientName: selectedPatient.name ?? selectedPatient.phone,
                     patientPhone: selectedPatient.phone,
