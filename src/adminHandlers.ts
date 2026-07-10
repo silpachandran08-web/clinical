@@ -59,6 +59,12 @@ const workingHoursSchema = z.object({
 export const createDoctorSchema = z.object({
   departmentId: z.string(),
   name: z.string().min(1),
+  consultationFee: z.number().min(0.01).default(0),
+  qualifications: z.string().max(500).optional(),
+  bio: z.string().max(1000).optional(),
+  specialization: z.string().max(200).optional(),
+  licenseNumber: z.string().max(100).optional(),
+  yearsOfExperience: z.number().int().min(0).max(60).optional(),
   workingHours: z.array(workingHoursSchema).default([]),
 });
 
@@ -135,6 +141,12 @@ export async function createDoctor(clinicId: string, input: z.infer<typeof creat
       clinicId,
       departmentId: input.departmentId,
       name: input.name,
+      consultationFee: input.consultationFee,
+      qualifications: input.qualifications,
+      bio: input.bio,
+      specialization: input.specialization,
+      licenseNumber: input.licenseNumber,
+      yearsOfExperience: input.yearsOfExperience,
       workingHours: {
         create: input.workingHours.map((wh) => ({
           dayOfWeek: wh.dayOfWeek,
@@ -155,13 +167,19 @@ export async function setDoctorActive(clinicId: string, doctorId: string, active
   return prisma.doctor.updateMany({ where: { id: doctorId, clinicId }, data: { active } });
 }
 
-export const updateDoctorSchema = createDoctorSchema;
+export const updateDoctorSchema = createDoctorSchema.extend({
+  departmentId: z.string().optional(),
+  name: z.string().min(1).optional(),
+}).partial().refine(
+  (data) => Object.keys(data).length > 0,
+  { message: "At least one field must be provided" }
+);
 
 /**
- * Replaces the doctor's name/department/weekly hours. Existing booked slots
- * are left alone (only OPEN — i.e. not-yet-booked — future slots are cleared
- * and regenerated from the new hours), so changing a schedule can never
- * silently cancel a patient's confirmed appointment.
+ * Replaces the doctor's name/department/weekly hours/professional details.
+ * Existing booked slots are left alone (only OPEN — i.e. not-yet-booked —
+ * future slots are cleared and regenerated from the new hours), so changing
+ * a schedule can never silently cancel a patient's confirmed appointment.
  */
 export async function updateDoctor(
   clinicId: string,
@@ -171,25 +189,46 @@ export async function updateDoctor(
   const doctor = await prisma.doctor.findFirst({ where: { id: doctorId, clinicId } });
   if (!doctor) throw new Error("Doctor not found");
 
-  await prisma.$transaction([
+  const updateData: any = {};
+  if (input.name) updateData.name = input.name;
+  if (input.departmentId) updateData.departmentId = input.departmentId;
+  if (input.consultationFee !== undefined) updateData.consultationFee = input.consultationFee;
+  if (input.qualifications !== undefined) updateData.qualifications = input.qualifications;
+  if (input.bio !== undefined) updateData.bio = input.bio;
+  if (input.specialization !== undefined) updateData.specialization = input.specialization;
+  if (input.licenseNumber !== undefined) updateData.licenseNumber = input.licenseNumber;
+  if (input.yearsOfExperience !== undefined) updateData.yearsOfExperience = input.yearsOfExperience;
+
+  const transactions: any[] = [
     prisma.doctor.update({
       where: { id: doctorId },
-      data: { name: input.name, departmentId: input.departmentId },
+      data: updateData,
     }),
-    prisma.workingHours.deleteMany({ where: { doctorId } }),
-    prisma.workingHours.createMany({
-      data: input.workingHours.map((wh) => ({
-        doctorId,
-        dayOfWeek: wh.dayOfWeek,
-        startTime: wh.startTime,
-        endTime: wh.endTime,
-        slotDurationMinutes: wh.slotDurationMinutes ?? 20,
-      })),
-    }),
-    prisma.slot.deleteMany({ where: { doctorId, status: "OPEN" } }),
-  ]);
+  ];
 
-  await generateSlotsForDoctor(doctorId);
+  // Only regenerate slots if working hours are provided
+  if (input.workingHours && input.workingHours.length > 0) {
+    transactions.push(
+      prisma.workingHours.deleteMany({ where: { doctorId } }),
+      prisma.workingHours.createMany({
+        data: input.workingHours.map((wh) => ({
+          doctorId,
+          dayOfWeek: wh.dayOfWeek,
+          startTime: wh.startTime,
+          endTime: wh.endTime,
+          slotDurationMinutes: wh.slotDurationMinutes ?? 20,
+        })),
+      }),
+      prisma.slot.deleteMany({ where: { doctorId, status: "OPEN" } }),
+    );
+  }
+
+  await prisma.$transaction(transactions);
+
+  // Only regenerate slots if working hours were updated
+  if (input.workingHours && input.workingHours.length > 0) {
+    await generateSlotsForDoctor(doctorId);
+  }
 }
 
 /**
