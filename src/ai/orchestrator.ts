@@ -83,7 +83,32 @@ export async function handleInboundMessage(params: {
     messages.shift();
   }
 
-  const system = buildSystemPrompt(params.clinic, state.locale);
+  // Prompt caching: mark cache breakpoints on the stable prefix (tools, then
+  // the system prompt, then the conversation history up to and including the
+  // just-received patient message). Everything before a breakpoint is cached
+  // for ~5 minutes and re-read at ~10% of the normal input-token price — so
+  // rounds 2+ of the tool loop below, and each subsequent message in an
+  // active chat, stop re-paying for the same prefix. The system prompt is
+  // hour-granular (see buildSystemPrompt) specifically so it stays stable.
+  const lastMessage = messages[messages.length - 1];
+  if (lastMessage && typeof lastMessage.content === "string") {
+    lastMessage.content = [
+      { type: "text", text: lastMessage.content, cache_control: { type: "ephemeral" } },
+    ];
+  }
+
+  const tools: Anthropic.Tool[] = toolDefinitions.map((t, i) =>
+    i === toolDefinitions.length - 1 ? { ...t, cache_control: { type: "ephemeral" } } : t,
+  );
+
+  const system: Anthropic.TextBlockParam[] = [
+    {
+      type: "text",
+      text: buildSystemPrompt(params.clinic, state.locale),
+      cache_control: { type: "ephemeral" },
+    },
+  ];
+
   let finalText = "";
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
@@ -91,9 +116,16 @@ export async function handleInboundMessage(params: {
       model: env.claudeModel,
       max_tokens: 1024,
       system,
-      tools: toolDefinitions,
+      tools,
       messages,
     });
+
+    // Cost visibility in production logs: cache_read tokens are ~10x cheaper
+    // than plain input tokens, so this line is how we know caching is working.
+    const u = response.usage;
+    console.log(
+      `[ai-usage] model=${env.claudeModel} round=${round} in=${u.input_tokens} out=${u.output_tokens} cache_write=${u.cache_creation_input_tokens ?? 0} cache_read=${u.cache_read_input_tokens ?? 0}`,
+    );
 
     const toolUses = response.content.filter(
       (block): block is Anthropic.ToolUseBlock => block.type === "tool_use",

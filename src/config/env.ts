@@ -10,7 +10,10 @@ export const env = {
   databaseUrl: required("DATABASE_URL"),
 
   anthropicApiKey: required("ANTHROPIC_API_KEY"),
-  claudeModel: process.env.CLAUDE_MODEL ?? "claude-sonnet-5",
+  // Haiku 4.5 handles this workload (Arabic/English chat + reliable tool
+  // calling) at ~1/3 the input and output price of Sonnet; combined with
+  // prompt caching in the orchestrator it makes per-conversation cost cents.
+  claudeModel: process.env.CLAUDE_MODEL ?? "claude-haiku-4-5-20251001",
 
   sessionSecret: required("SESSION_SECRET"),
 

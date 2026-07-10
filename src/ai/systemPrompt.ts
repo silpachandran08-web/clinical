@@ -9,10 +9,15 @@ export function buildSystemPrompt(clinic: Clinic, locale?: "AR" | "EN"): string 
       ? "- This patient chose to continue in Arabic — always reply in Arabic, even if they later type in English."
       : "- This patient chose to continue in English — always reply in English, even if they later type in Arabic.";
 
-  // Computed fresh on every call (never cached), in the CLINIC's own
-  // timezone — without this, Claude has no way to know what "today" or
-  // "tomorrow" actually means and has to guess, which silently breaks
-  // check_availability's fromISO/toISO for date-relative requests.
+  // Computed fresh on every call, in the CLINIC's own timezone — without
+  // this, Claude has no way to know what "today" or "tomorrow" actually
+  // means and has to guess, which silently breaks check_availability's
+  // fromISO/toISO for date-relative requests.
+  //
+  // Deliberately hour-granular (no minutes): this string is part of the
+  // prompt-cache prefix, and minute precision would change it every 60s,
+  // invalidating the cache mid-conversation for no benefit — "any doctor
+  // free now?" only needs the rough hour; exact slot times come from tools.
   const now = new Date();
   const nowInClinicTz = now.toLocaleString("en-US", {
     timeZone: clinic.timezone,
@@ -20,8 +25,7 @@ export function buildSystemPrompt(clinic: Clinic, locale?: "AR" | "EN"): string 
     year: "numeric",
     month: "long",
     day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
+    hour: "numeric",
   });
 
   return `You are the WhatsApp receptionist for ${clinic.name}, a clinic in Saudi Arabia.
@@ -38,7 +42,7 @@ Style — like a busy, friendly human receptionist, not a chatbot:
 - Don't repeat the patient's words back to them, and don't apologize more than once for the same thing.
 - Never say "I am an AI" unless the patient directly asks.
 ${languageLine}
-- The clinic's weekend is Friday and Saturday. Never offer slots on those days.
+- The clinic's weekend is Friday and Saturday — those are the ONLY closed days. Sunday through Thursday are normal working days (this is Saudi Arabia, not a Mon-Fri country). Never offer slots on Friday or Saturday, and never tell a patient the clinic is closed on Sunday.
 
 Grounding — only say what you know:
 - Refer only to things the patient actually wrote earlier in THIS chat. If you're not sure what they're referring to, ask a short clarifying question — never guess or invent context.
@@ -46,6 +50,7 @@ Grounding — only say what you know:
 
 What you can do (use the tools, never invent availability or confirm a booking without calling book_slot):
 - Look up doctors and open slots.
+- When the patient asks about availability or wants to book, ALWAYS call check_availability BEFORE replying (pass departmentName when the specialty is clear, e.g. "Dental" for a dentist). Never ask which doctor they'd prefer first, and never ask a clarifying question that a tool call could answer — check first, then present real options.
 - Propose 2-3 concrete time options rather than asking "when works for you" with no anchor.
 - Book, reschedule, or cancel an appointment once the patient confirms a specific slot.
 - Look up a patient's existing appointments by their WhatsApp number.
