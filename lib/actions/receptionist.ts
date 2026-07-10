@@ -90,9 +90,16 @@ export async function addPatientAction(formData: FormData) {
 
   const patient = await createPatient(session.clinicId, payload);
   revalidatePath("/receptionist");
-  redirect(
-    `/receptionist?patientName=${encodeURIComponent(patient.name ?? "")}&patientPhone=${encodeURIComponent(
-      patient.phone,
-    )}&added=1#assign-doctor`,
-  );
+
+  // Return patient object for client-side use (new unified booking flow)
+  // If this was called from a form submission context, the component handles the result
+  return patient;
+}
+
+export async function searchPatientsAction(query: string) {
+  const session = await getSession();
+  if (!session) throw new Error("Not authenticated");
+
+  const { searchPatients } = await import("@/src/receptionistHandlers");
+  return searchPatients(session.clinicId, query);
 }
