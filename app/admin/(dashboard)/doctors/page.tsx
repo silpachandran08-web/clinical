@@ -65,6 +65,11 @@ export default async function DoctorsPage({
             </select>
           </label>
 
+          <label>
+            Consultation Fee
+            <input type="number" name="consultationFee" step="0.01" min="0.01" defaultValue="0" required />
+          </label>
+
           <label>Working days</label>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
             {DAYS.map((d) => (
@@ -108,6 +113,8 @@ export default async function DoctorsPage({
               <tr>
                 <th>Name</th>
                 <th>Department</th>
+                <th>Specialization</th>
+                <th>Consultation Fee</th>
                 <th>Working days</th>
                 <th>Login</th>
                 <th>Status</th>
@@ -119,6 +126,8 @@ export default async function DoctorsPage({
                 <tr key={doc.id}>
                   <td>{doc.name}</td>
                   <td>{doc.department.name}</td>
+                  <td>{doc.specialization || "—"}</td>
+                  <td>{doc.consultationFee ? `${doc.consultationFee.toFixed(2)} SAR` : "—"}</td>
                   <td>{doc.workingHours.map((wh) => DAYS[wh.dayOfWeek].label).join(", ") || "—"}</td>
                   <td>{doc.user ? doc.user.email : <span className="muted">not invited</span>}</td>
                   <td>
