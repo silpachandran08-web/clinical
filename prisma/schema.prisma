@@ -88,6 +88,13 @@ enum TransactionType {
   EXPENSE
 }
 
+enum ChargeCategory {
+  LAB
+  PROCEDURE
+  MEDICATION
+  OTHER
+}
+
 model Clinic {
   id                 String             @id @default(cuid())
   name               String
@@ -199,6 +206,14 @@ model Doctor {
   // of relying on unreliable unload-event detection.
   isAvailable  Boolean    @default(false)
   lastSeenAt   DateTime?
+  // Consultation fee charged for appointments with this doctor
+  consultationFee Decimal  @default(0) @db.Decimal(10, 2)
+  // Optional professional details
+  qualifications String?  // e.g., "MBBS, MD Medicine, Fellowship"
+  bio            String?  // Professional biography
+  specialization String?  // Medical specialization
+  licenseNumber  String?  // Medical license number
+  yearsOfExperience Int?  // Years in practice
   createdAt    DateTime   @default(now())
 
   workingHours  WorkingHours[]
@@ -284,8 +299,23 @@ model Appointment {
   createdAt      DateTime          @default(now())
 
   consultation Consultation?
+  charges      AppointmentCharge[]
 
   @@index([clinicId, status])
+}
+
+// Additional charges applied to an appointment (lab work, procedures, medications)
+// on top of the base consultation fee
+model AppointmentCharge {
+  id            String         @id @default(cuid())
+  appointmentId String
+  appointment   Appointment    @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  description   String         // e.g., "Blood test", "Ultrasound"
+  amount        Decimal        @db.Decimal(10, 2)
+  category      ChargeCategory
+  createdAt     DateTime       @default(now())
+
+  @@index([appointmentId])
 }
 
 // A doctor's notes + prescription for one completed visit. Real clinical
