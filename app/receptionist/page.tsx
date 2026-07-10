@@ -2,11 +2,10 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/session";
 import { getClinic, listDoctors } from "@/src/adminHandlers";
 import {
-  formatDayParam,
-  formatWeekParam,
   getDayParam,
   getWeekStart,
   listDoctorsStatusForDay,
+  listMultiWeekSlotsForDoctors,
   listOpenEscalations,
   listTodayAppointments,
   listWeekSlots,
@@ -32,25 +31,9 @@ type ReceptionistParams = {
   patientName?: string;
   patientPhone?: string;
   week?: string;
-  statusDay?: string;
   slotId?: string;
   tab?: string;
 };
-
-function slotQuery(params: {
-  doctorId: string;
-  patientName: string;
-  patientPhone: string;
-  week?: string;
-}) {
-  const q = new URLSearchParams();
-  q.set("tab", "booking");
-  q.set("doctorId", params.doctorId);
-  if (params.patientName) q.set("patientName", params.patientName);
-  if (params.patientPhone) q.set("patientPhone", params.patientPhone);
-  if (params.week) q.set("week", params.week);
-  return `/receptionist?${q.toString()}#assign-doctor`;
-}
 
 export default async function ReceptionistPage({
   searchParams,
@@ -61,56 +44,14 @@ export default async function ReceptionistPage({
   if (!session) redirect("/login");
 
   const params = await searchParams;
+  const currentTab = params.tab || "overview";
 
   const clinic = await getClinic(session.clinicId);
   const timeZone = clinic.timezone;
 
   const today = getDayParam(undefined, timeZone);
-  const statusDay = getDayParam(params.statusDay, timeZone);
-  const isToday = statusDay.getTime() === today.getTime();
-  const prevDay = new Date(statusDay.getTime() - DAY_MS);
-  const nextDay = new Date(statusDay.getTime() + DAY_MS);
-  const canGoBackDay = statusDay > today;
-
-  const [appointments, todayDoctorStatus, browsedDoctorStatus, allDoctors, escalations] = await Promise.all([
-    listTodayAppointments(session.clinicId, timeZone),
-    listDoctorsStatusForDay(session.clinicId, today),
-    isToday ? Promise.resolve(null) : listDoctorsStatusForDay(session.clinicId, statusDay),
-    listDoctors(session.clinicId),
-    listOpenEscalations(session.clinicId),
-  ]);
-  const doctorStatus = browsedDoctorStatus ?? todayDoctorStatus;
-
-  // Fetch multi-week slots for Doctors tab (current week + 3 weeks ahead)
-  const currentWeekStart = getWeekStart(undefined, timeZone);
-  const doctorsWithWeeks = await Promise.all(
-    allDoctors
-      .filter((d) => d.active)
-      .map(async (doc) => {
-        const weeksData = [];
-        for (let i = 0; i < 4; i++) {
-          const weekStart = new Date(
-            currentWeekStart.getTime() + i * 7 * 24 * 60 * 60 * 1000
-          );
-          const weekEnd = new Date(
-            weekStart.getTime() + 7 * 24 * 60 * 60 * 1000
-          );
-          const slots = await listWeekSlots(session.clinicId, doc.id, weekStart);
-          const weekLabel = `${weekStart.toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone })} – ${weekEnd.toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone })}`;
-          weeksData.push({ weekStart, weekLabel, days: slots });
-        }
-        return {
-          id: doc.id,
-          name: doc.name,
-          department: doc.department,
-          isLive: todayDoctorStatus.find((d) => d.id === doc.id)?.isLive ?? false,
-          weeksData,
-        };
-      })
-  );
-
-  const activeDoctors = allDoctors.filter((d) => d.active);
   const selectedDoctorId = params.doctorId ?? "";
+  const patientQuery = params.patientQuery ?? "";
 
   const weekStart = getWeekStart(params.week, timeZone);
   const prevWeekStart = new Date(weekStart.getTime() - 7 * DAY_MS);
@@ -118,19 +59,60 @@ export default async function ReceptionistPage({
   const thisWeekStart = getWeekStart(undefined, timeZone);
   const canGoBack = weekStart > thisWeekStart;
 
-  const week = selectedDoctorId ? await listWeekSlots(session.clinicId, selectedDoctorId, weekStart) : [];
+  // Appointments + doctor status feed the always-visible stat cards; every
+  // other dataset belongs to a single tab, so only the active tab pays for
+  // its own queries (this page re-renders on every AutoRefresh poll).
+  const isBooking = currentTab === "booking";
+  const needsDoctorList = isBooking || currentTab === "doctors";
+  const [appointments, todayDoctorStatus, allDoctors, escalations, week, patientResults] = await Promise.all([
+    listTodayAppointments(session.clinicId, timeZone),
+    listDoctorsStatusForDay(session.clinicId, today),
+    needsDoctorList ? listDoctors(session.clinicId) : Promise.resolve([]),
+    currentTab === "overview" ? listOpenEscalations(session.clinicId) : Promise.resolve([]),
+    isBooking && selectedDoctorId
+      ? listWeekSlots(session.clinicId, selectedDoctorId, weekStart)
+      : Promise.resolve([]),
+    isBooking && patientQuery ? searchPatients(session.clinicId, patientQuery) : Promise.resolve([]),
+  ]);
 
-  const patientQuery = params.patientQuery ?? "";
-  const patientResults = patientQuery ? await searchPatients(session.clinicId, patientQuery) : [];
+  // Doctors tab: multi-week slot grids (current week + 3 ahead), all doctors
+  // and weeks fetched in one batched query.
+  const currentWeekStart = getWeekStart(undefined, timeZone);
+  let doctorsWithWeeks: Array<{
+    id: string;
+    name: string;
+    department: (typeof allDoctors)[number]["department"];
+    isLive: boolean;
+    weeksData: Array<{ weekStart: Date; weekLabel: string; days: Awaited<ReturnType<typeof listWeekSlots>> }>;
+  }> = [];
+  if (currentTab === "doctors") {
+    const activeDoctors = allDoctors.filter((d) => d.active);
+    const weeksByDoctor = await listMultiWeekSlotsForDoctors(
+      session.clinicId,
+      activeDoctors.map((d) => d.id),
+      currentWeekStart,
+      4
+    );
+    doctorsWithWeeks = activeDoctors.map((doc) => ({
+      id: doc.id,
+      name: doc.name,
+      department: doc.department,
+      isLive: todayDoctorStatus.find((d) => d.id === doc.id)?.isLive ?? false,
+      weeksData: (weeksByDoctor.get(doc.id) ?? []).map((days, i) => {
+        const wkStart = new Date(currentWeekStart.getTime() + i * 7 * DAY_MS);
+        const wkEnd = new Date(wkStart.getTime() + 7 * DAY_MS);
+        const weekLabel = `${wkStart.toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone })} – ${wkEnd.toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone })}`;
+        return { weekStart: wkStart, weekLabel, days };
+      }),
+    }));
+  }
 
   const selectedPatientName = params.patientName ?? "";
   const selectedPatientPhone = params.patientPhone ?? "";
-  const hasSelectedPatient = Boolean(selectedPatientPhone);
 
   const waitingCount = todayDoctorStatus.reduce((sum, d) => sum + d.waiting.length, 0);
   const inProgressCount = todayDoctorStatus.filter((d) => d.inProgressWith).length;
   const now = new Date();
-  const currentTab = params.tab || "overview";
 
   return (
     <div>
@@ -191,7 +173,12 @@ export default async function ReceptionistPage({
         {currentTab === "booking" && (
           <BookingTab
             clinic={clinic}
-            allDoctors={allDoctors}
+            allDoctors={allDoctors.map((d) => ({
+              id: d.id,
+              name: d.name,
+              active: d.active,
+              department: { name: d.department.name },
+            }))}
             patientQuery={patientQuery}
             patientResults={patientResults}
             selectedDoctorId={selectedDoctorId}

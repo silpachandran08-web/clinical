@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
 type TabId = "overview" | "doctors" | "booking" | "queue" | "billing";
@@ -19,13 +20,13 @@ export function TabsNav() {
   return (
     <div className="tabs-nav">
       {TABS.map((tab) => (
-        <a
+        <Link
           key={tab.id}
           href={`/receptionist?tab=${tab.id}`}
           className={`tab-link ${currentTab === tab.id ? "active" : ""}`}
         >
           {tab.label}
-        </a>
+        </Link>
       ))}
     </div>
   );

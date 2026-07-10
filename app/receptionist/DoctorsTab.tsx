@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import type { Clinic } from "@prisma/client";
 import { ChevronLeftIcon, ChevronRightIcon, StethoscopeIcon } from "../DashboardIcons";
 import type { WeekDay } from "@/src/receptionistHandlers";
@@ -26,6 +27,7 @@ interface DoctorsTabProps {
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 export function DoctorsTab({ clinic, doctors, now }: DoctorsTabProps) {
+  const router = useRouter();
   // Compute working days (all days except weekends)
   const workingDayNums = Array.from({ length: 7 }, (_, i) => i).filter(
     (day) => !clinic.weekendDays.includes(day)
@@ -59,7 +61,7 @@ export function DoctorsTab({ clinic, doctors, now }: DoctorsTabProps) {
     query.set("tab", "booking");
     query.set("doctorId", doctorId);
     query.set("slotId", slotId);
-    window.location.href = `/receptionist?${query.toString()}#assign-doctor`;
+    router.push(`/receptionist?${query.toString()}#assign-doctor`);
   };
 
   const getWeekIndex = (doctorId: string): number => {

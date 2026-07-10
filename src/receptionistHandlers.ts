@@ -154,6 +154,57 @@ export async function listWeekSlots(clinicId: string, doctorId: string, weekStar
   return days;
 }
 
+/**
+ * Several doctors' slots across several consecutive weeks in ONE query,
+ * bucketed into per-doctor week grids. Replaces calling listWeekSlots
+ * doctor-by-doctor, week-by-week (4 sequential queries per doctor) on the
+ * front desk Doctors tab — one clinic-wide query regardless of headcount.
+ */
+export async function listMultiWeekSlotsForDoctors(
+  clinicId: string,
+  doctorIds: string[],
+  firstWeekStart: Date,
+  weekCount: number
+): Promise<Map<string, WeekDay[][]>> {
+  const result = new Map<string, WeekDay[][]>();
+  if (doctorIds.length === 0) return result;
+
+  const rangeEnd = new Date(firstWeekStart.getTime() + weekCount * 7 * DAY_MS);
+  const slots = await prisma.slot.findMany({
+    where: { doctorId: { in: doctorIds }, doctor: { clinicId }, startsAt: { gte: firstWeekStart, lt: rangeEnd } },
+    orderBy: { startsAt: "asc" },
+    select: { id: true, doctorId: true, startsAt: true, status: true },
+  });
+
+  // Bucket once by doctor + day offset instead of re-scanning the slot list per grid cell.
+  const byDoctorDay = new Map<string, { id: string; startsAt: Date; status: string }[]>();
+  for (const slot of slots) {
+    const dayIndex = Math.floor((slot.startsAt.getTime() - firstWeekStart.getTime()) / DAY_MS);
+    const key = `${slot.doctorId}:${dayIndex}`;
+    const entry = { id: slot.id, startsAt: slot.startsAt, status: slot.status };
+    const bucket = byDoctorDay.get(key);
+    if (bucket) bucket.push(entry);
+    else byDoctorDay.set(key, [entry]);
+  }
+
+  for (const doctorId of doctorIds) {
+    const weeks: WeekDay[][] = [];
+    for (let w = 0; w < weekCount; w++) {
+      const days: WeekDay[] = [];
+      for (let i = 0; i < 7; i++) {
+        const dayIndex = w * 7 + i;
+        days.push({
+          date: new Date(firstWeekStart.getTime() + dayIndex * DAY_MS),
+          slots: byDoctorDay.get(`${doctorId}:${dayIndex}`) ?? [],
+        });
+      }
+      weeks.push(days);
+    }
+    result.set(doctorId, weeks);
+  }
+  return result;
+}
+
 export async function bookWalkIn(params: {
   clinicId: string;
   slotId: string;
