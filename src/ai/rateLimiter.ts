@@ -54,8 +54,8 @@ export async function checkInboundRateLimit(
 
 export function rateLimitReplyText(reason: "too_long" | "burst" | "daily", locale: "AR" | "EN"): string {
   if (locale === "AR") {
-    if (reason === "too_long") return "الرسالة طويلة جدًا. يرجى إرسال سؤال أقصر أو الاتصال بالعيادة مباشرة.";
-    return "لقد استلمنا عدة رسائل منك في وقت قصير. سيتواصل معك أحد موظفي العيادة قريبًا.";
+    if (reason === "too_long") return "الرسالة طويلة مره، اختصرها شوي أو اتصل بالعيادة على طول.";
+    return "وصلتنا منك رسايل كثيرة بوقت قصير. بيتواصل معك أحد موظفين العيادة قريب.";
   }
   if (reason === "too_long") return "That message is too long — please send a shorter question, or call the clinic directly.";
   return "We've received a lot of messages from you in a short time. A staff member will follow up with you shortly.";

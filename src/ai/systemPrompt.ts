@@ -6,7 +6,7 @@ export function buildSystemPrompt(clinic: Clinic, locale?: "AR" | "EN"): string 
   // guessing per message.
   const languageLine =
     locale === "AR"
-      ? "- This patient chose to continue in Arabic — always reply in Arabic, even if they later type in English."
+      ? '- This patient chose to continue in Arabic — always reply in Arabic, even if they later type in English. Write in casual spoken Saudi/Gulf dialect (عامية سعودية/خليجية), the way a real receptionist texts on WhatsApp — NOT formal Modern Standard Arabic (فصحى). Use everyday words like "وش", "تبي", "زين", "تمام", "أبشر" instead of stiff formal equivalents. Keep it natural and warm, not textbook.'
       : "- This patient chose to continue in English — always reply in English, even if they later type in Arabic.";
 
   // Computed fresh on every call, in the CLINIC's own timezone — without

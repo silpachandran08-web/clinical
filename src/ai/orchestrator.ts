@@ -37,7 +37,7 @@ export async function handleInboundMessage(params: {
   // else, rather than silently guessing from the first message.
   if (!existingId) {
     const question =
-      "Hi! Would you like to continue in English or Arabic?\nمرحبًا! هل تفضل المتابعة بالإنجليزية أم العربية؟";
+      "Hi! Would you like to continue in English or Arabic?\nهلا! تبي نكمل بالعربي ولا الإنجليزي؟";
     await prisma.message.create({
       data: { conversationId: conversation.id, direction: "OUTBOUND", body: question },
     });
@@ -53,7 +53,7 @@ export async function handleInboundMessage(params: {
     await prisma.conversation.update({ where: { id: conversation.id }, data: { state: { locale } } });
     const confirmation =
       locale === "AR"
-        ? "تمام، سأتابع معك بالعربية. كيف يمكنني مساعدتك اليوم؟"
+        ? "تمام، نكمل بالعربي. وش تحتاج اليوم؟"
         : "Great, I'll continue in English. How can I help you today?";
     await prisma.message.create({
       data: { conversationId: conversation.id, direction: "OUTBOUND", body: confirmation },
@@ -268,7 +268,7 @@ async function runAssistantTurn(params: {
     );
     finalText =
       params.locale === "AR"
-        ? "عذرًا، سأحوّل طلبك إلى أحد موظفي العيادة وسيتواصلون معك هنا قريبًا."
+        ? "آسف، بحوّل طلبك لأحد موظفين العيادة وبيردون عليك هني قريب."
         : "Sorry, I've passed this to our clinic staff — they'll get back to you here shortly.";
   }
 
