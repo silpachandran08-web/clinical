@@ -77,6 +77,7 @@ enum IntegrationMode {
   NATIVE
   FHIR
   SHEETS
+  CUSTOM_API
 }
 
 // Manual bookkeeping until real payment integration exists — a clinic logs

@@ -2,7 +2,6 @@ import type Anthropic from "@anthropic-ai/sdk";
 import type { Clinic } from "@prisma/client";
 import { env } from "../config/env";
 import { getEhrAdapter } from "../integrations/index";
-import * as bookingService from "../scheduling/bookingService";
 import { zonedTimeToUtc } from "../scheduling/timezone";
 
 export const toolDefinitions: Anthropic.Tool[] = [
@@ -82,15 +81,15 @@ export async function runTool(name: string, input: any, ctx: ToolContext): Promi
 
   switch (name) {
     case "list_doctors": {
-      const { prisma } = await import("../db/client");
-      return prisma.doctor.findMany({
-        where: {
-          clinicId: ctx.clinic.id,
-          active: true,
-          ...(input.departmentName ? { department: { name: input.departmentName } } : {}),
-        },
-        select: { id: true, name: true, department: { select: { name: true } } },
+      const doctors = await adapter.listDoctors({
+        clinicId: ctx.clinic.id,
+        departmentName: input.departmentName,
       });
+      return doctors.map((d) => ({
+        id: d.doctorId,
+        name: d.doctorName,
+        department: d.departmentName ? { name: d.departmentName } : null,
+      }));
     }
 
     case "check_availability": {
@@ -133,11 +132,14 @@ export async function runTool(name: string, input: any, ctx: ToolContext): Promi
     }
 
     case "get_patient_appointments": {
-      const appointments = await bookingService.getPatientAppointments(ctx.clinic.id, ctx.patientPhone);
+      const appointments = await adapter.getPatientAppointments({
+        clinicId: ctx.clinic.id,
+        patientPhone: ctx.patientPhone,
+      });
       return appointments.map((a) => ({
-        appointmentId: a.id,
-        doctorName: a.doctor.name,
-        startsAt: a.slot.startsAt.toISOString(),
+        appointmentId: a.appointmentId,
+        doctorName: a.doctorName,
+        startsAt: a.startsAt.toISOString(),
       }));
     }
 

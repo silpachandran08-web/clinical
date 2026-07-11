@@ -12,6 +12,18 @@ export interface BookingResult {
   startsAt: Date;
 }
 
+export interface DoctorSummary {
+  doctorId: string;
+  doctorName: string;
+  departmentName: string | null;
+}
+
+export interface PatientAppointmentSummary {
+  appointmentId: string;
+  doctorName: string;
+  startsAt: Date;
+}
+
 /**
  * The "plug into any clinical solution" seam. A clinic that already runs
  * its own EHR/scheduling system doesn't migrate data into us — it just
@@ -27,6 +39,8 @@ export interface BookingResult {
  *   Google Sheet as the schedule of record.
  */
 export interface EhrAdapter {
+  listDoctors(params: { clinicId: string; departmentName?: string }): Promise<DoctorSummary[]>;
+
   getAvailability(params: {
     clinicId: string;
     doctorId?: string;
@@ -41,6 +55,8 @@ export interface EhrAdapter {
     patientPhone: string;
     patientName: string;
   }): Promise<BookingResult>;
+
+  getPatientAppointments(params: { clinicId: string; patientPhone: string }): Promise<PatientAppointmentSummary[]>;
 
   cancelAppointment(params: { clinicId: string; appointmentId: string }): Promise<void>;
 }

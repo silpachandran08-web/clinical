@@ -1,4 +1,10 @@
-import type { AvailabilitySlot, BookingResult, EhrAdapter } from "./ehrAdapter";
+import type {
+  AvailabilitySlot,
+  BookingResult,
+  DoctorSummary,
+  EhrAdapter,
+  PatientAppointmentSummary,
+} from "./ehrAdapter";
 
 /**
  * Stub for clinics that already run a FHIR-based scheduling/EHR system.
@@ -15,12 +21,22 @@ import type { AvailabilitySlot, BookingResult, EhrAdapter } from "./ehrAdapter";
 export class FhirAdapter implements EhrAdapter {
   constructor(private readonly config: { baseUrl: string; authToken: string }) {}
 
+  async listDoctors(): Promise<DoctorSummary[]> {
+    throw new Error("FhirAdapter.listDoctors not implemented — wire up when onboarding a FHIR-based clinic");
+  }
+
   async getAvailability(): Promise<AvailabilitySlot[]> {
     throw new Error("FhirAdapter.getAvailability not implemented — wire up when onboarding a FHIR-based clinic");
   }
 
   async bookSlot(): Promise<BookingResult> {
     throw new Error("FhirAdapter.bookSlot not implemented — wire up when onboarding a FHIR-based clinic");
+  }
+
+  async getPatientAppointments(): Promise<PatientAppointmentSummary[]> {
+    throw new Error(
+      "FhirAdapter.getPatientAppointments not implemented — wire up when onboarding a FHIR-based clinic"
+    );
   }
 
   async cancelAppointment(): Promise<void> {

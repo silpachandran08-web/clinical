@@ -1,4 +1,6 @@
 import type { Clinic } from "@prisma/client";
+import { CustomApiAdapter } from "./customApiAdapter";
+import { customApiConfigSchema } from "./customApiConfig";
 import { FhirAdapter } from "./fhirAdapter";
 import { NativeAdapter } from "./nativeAdapter";
 import type { EhrAdapter } from "./ehrAdapter";
@@ -13,6 +15,15 @@ export function getEhrAdapter(clinic: Clinic): EhrAdapter {
       if (!config) throw new Error(`Clinic ${clinic.id} is set to FHIR mode but has no integrationConfig`);
       return new FhirAdapter(config);
     }
+    case "CUSTOM_API": {
+      const parsed = customApiConfigSchema.safeParse(clinic.integrationConfig);
+      if (!parsed.success) {
+        throw new Error(
+          `Clinic ${clinic.id} is set to CUSTOM_API mode but its integrationConfig is invalid: ${parsed.error.message}`
+        );
+      }
+      return new CustomApiAdapter(parsed.data);
+    }
     case "SHEETS":
       throw new Error("SheetsAdapter not yet implemented");
     case "NATIVE":
@@ -21,4 +32,4 @@ export function getEhrAdapter(clinic: Clinic): EhrAdapter {
   }
 }
 
-export type { EhrAdapter, AvailabilitySlot, BookingResult } from "./ehrAdapter";
+export type { EhrAdapter, AvailabilitySlot, BookingResult, DoctorSummary, PatientAppointmentSummary } from "./ehrAdapter";
