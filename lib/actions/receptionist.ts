@@ -10,6 +10,7 @@ import {
   getEscalationPatientPhone,
   resolveEscalation,
 } from "@/src/receptionistHandlers";
+import { cancelAppointment, rescheduleAppointment } from "@/src/scheduling/bookingService";
 import { getClinic } from "@/src/adminHandlers";
 import { handleStaffInstruction } from "@/src/ai/orchestrator";
 import { getSession } from "@/lib/session";
@@ -21,6 +22,32 @@ export async function checkInAction(formData: FormData) {
   const appointmentId = String(formData.get("appointmentId"));
   await checkInAppointment(session.clinicId, appointmentId);
   revalidatePath("/receptionist");
+}
+
+export async function cancelAppointmentAction(formData: FormData) {
+  const session = await getSession();
+  if (!session) throw new Error("Not authenticated");
+
+  const appointmentId = String(formData.get("appointmentId"));
+  await cancelAppointment(session.clinicId, appointmentId);
+  revalidatePath("/receptionist");
+}
+
+export async function rescheduleAppointmentAction(appointmentId: string, newSlotId: string) {
+  const session = await getSession();
+  if (!session) throw new Error("Not authenticated");
+
+  await rescheduleAppointment(session.clinicId, appointmentId, newSlotId);
+  revalidatePath("/receptionist");
+}
+
+export async function listActiveDoctorsAction() {
+  const session = await getSession();
+  if (!session) throw new Error("Not authenticated");
+
+  const { listDoctors } = await import("@/src/adminHandlers");
+  const doctors = await listDoctors(session.clinicId);
+  return doctors.filter((d) => d.active);
 }
 
 export async function resolveEscalationAction(formData: FormData) {

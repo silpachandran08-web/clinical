@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { checkInAction } from "@/lib/actions/receptionist";
+import { EditAppointmentModal } from "./EditAppointmentModal";
+import { CancelAppointmentButton } from "./CancelAppointmentButton";
 import {
   CalendarIcon,
   ChevronDownIcon,
@@ -164,6 +166,7 @@ export function QueueTab({ appointments, timeZone }: QueueTabProps) {
                               display: "flex",
                               alignItems: "center",
                               justifyContent: "space-between",
+                              flexWrap: "wrap",
                               padding: "12px 14px",
                               background: "var(--surface-2)",
                               borderRadius: "var(--radius-sm)",
@@ -174,6 +177,7 @@ export function QueueTab({ appointments, timeZone }: QueueTabProps) {
                                     ? "var(--success)"
                                     : "var(--accent)"
                               }`,
+                              rowGap: 8,
                             }}
                           >
                             <div style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 0 }}>
@@ -213,7 +217,7 @@ export function QueueTab({ appointments, timeZone }: QueueTabProps) {
                                 </div>
                               </div>
                             </div>
-                            <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                            <div className="appt-row-actions" style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, flexWrap: "wrap", justifyContent: "flex-end" }}>
                               <span
                                 style={{
                                   fontSize: 11,
@@ -262,6 +266,13 @@ export function QueueTab({ appointments, timeZone }: QueueTabProps) {
                                     Check in
                                   </button>
                                 </form>
+                              )}
+
+                              {(a.status === "CONFIRMED" || a.status === "CHECKED_IN") && (
+                                <>
+                                  <EditAppointmentModal appointment={a} timeZone={timeZone} />
+                                  <CancelAppointmentButton appointmentId={a.id} />
+                                </>
                               )}
                             </div>
                           </div>

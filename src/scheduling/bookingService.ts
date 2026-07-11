@@ -97,12 +97,48 @@ export async function bookSlot(params: BookSlotParams) {
 export async function cancelAppointment(clinicId: string, appointmentId: string) {
   return prisma.$transaction(async (tx) => {
     const appointment = await tx.appointment.findFirst({
-      where: { id: appointmentId, clinicId },
+      where: { id: appointmentId, clinicId, status: { in: ["CONFIRMED", "CHECKED_IN"] } },
     });
-    if (!appointment) throw new Error("Appointment not found");
+    if (!appointment) throw new Error("Appointment not found, or not in a state that can be cancelled");
 
     await tx.appointment.update({ where: { id: appointmentId }, data: { status: "CANCELLED" } });
     await tx.slot.update({ where: { id: appointment.slotId }, data: { status: "OPEN" } });
+  });
+}
+
+/**
+ * Moves an existing appointment to a different slot (and, if the new slot
+ * belongs to a different doctor, reassigns the doctor too) instead of
+ * cancel-and-rebook — keeps the same appointment row (id, reason,
+ * bookedByStaff, createdAt) intact. Same atomic-claim pattern as bookSlot:
+ * only a still-OPEN slot can be claimed, so two staff racing to edit the
+ * same slot can never both succeed.
+ */
+export async function rescheduleAppointment(clinicId: string, appointmentId: string, newSlotId: string) {
+  return prisma.$transaction(async (tx) => {
+    const appointment = await tx.appointment.findFirst({
+      where: { id: appointmentId, clinicId, status: { in: ["CONFIRMED", "CHECKED_IN"] } },
+    });
+    if (!appointment) throw new Error("Appointment not found, or not in a state that can be edited");
+
+    if (appointment.slotId === newSlotId) return;
+
+    const newSlot = await tx.slot.findFirst({
+      where: { id: newSlotId, doctor: { clinicId } },
+    });
+    if (!newSlot) throw new SlotUnavailableError(newSlotId);
+
+    const claim = await tx.slot.updateMany({
+      where: { id: newSlotId, status: "OPEN" },
+      data: { status: "BOOKED" },
+    });
+    if (claim.count === 0) throw new SlotUnavailableError(newSlotId);
+
+    await tx.slot.update({ where: { id: appointment.slotId }, data: { status: "OPEN" } });
+    await tx.appointment.update({
+      where: { id: appointmentId },
+      data: { slotId: newSlotId, doctorId: newSlot.doctorId },
+    });
   });
 }
 

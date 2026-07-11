@@ -288,7 +288,11 @@ model Slot {
   endsAt    DateTime
   status    SlotStatus @default(OPEN)
 
-  appointment Appointment?
+  // Not a 1:1 back-relation: a slot can accumulate multiple CANCELLED/NO_SHOW
+  // appointment rows over time (see Appointment.slotId's partial unique
+  // index — only one non-terminal appointment per slot is enforced, not one
+  // ever). Query the active one via Appointment.status when needed.
+  appointments Appointment[]
 
   @@unique([doctorId, startsAt])
   @@index([doctorId, status, startsAt])
@@ -326,7 +330,13 @@ model Appointment {
   doctor         Doctor            @relation(fields: [doctorId], references: [id])
   patientId      String
   patient        Patient           @relation(fields: [patientId], references: [id])
-  slotId         String            @unique
+  // Not @unique in Prisma — a cancelled appointment keeps its slotId forever
+  // (history), so the same slot can accumulate several CANCELLED/NO_SHOW
+  // rows. "At most one active appointment per slot" is instead enforced by
+  // a partial unique index (see migration) that only covers non-terminal
+  // statuses, so a freed slot can be rebooked without hitting a phantom
+  // uniqueness conflict from its own cancelled history.
+  slotId         String
   slot           Slot              @relation(fields: [slotId], references: [id])
   status         AppointmentStatus @default(CONFIRMED)
   reason         String?           // free-text, logistics only (e.g. "follow-up") — never clinical advice
@@ -341,6 +351,7 @@ model Appointment {
   payments     Payment[]
 
   @@index([clinicId, status])
+  @@index([slotId])
 }
 
 // Money actually collected against an appointment (consultation fee plus

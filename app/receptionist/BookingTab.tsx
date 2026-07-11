@@ -2,7 +2,7 @@
 
 import type { Clinic } from "@prisma/client";
 import { useState, useTransition } from "react";
-import { addPatientAction, searchPatientsAction, listWeekSlotsAction } from "@/lib/actions/receptionist";
+import { addPatientAction, searchPatientsAction, listWeekSlotsAction, bookWalkInAction } from "@/lib/actions/receptionist";
 import { WeekSlotPicker } from "./WeekSlotPicker";
 import {
   SearchIcon,
@@ -423,9 +423,14 @@ export function BookingTab({
               </div>
 
               <WeekSlotPicker
-                doctorId={selectedDoctor}
-                patientName={selectedPatient.name ?? selectedPatient.phone}
-                patientPhone={selectedPatient.phone}
+                onSave={async (slotId) => {
+                  const formData = new FormData();
+                  formData.set("doctorId", selectedDoctor);
+                  formData.set("slotId", slotId);
+                  formData.set("patientName", selectedPatient.name ?? selectedPatient.phone);
+                  formData.set("patientPhone", selectedPatient.phone);
+                  await bookWalkInAction(formData);
+                }}
                 preSelectedSlotId={preSelectedSlotId}
                 days={displayWeek.map((day: any) => ({
                   label: new Date(day.date).toLocaleDateString(undefined, { weekday: "short", timeZone }),

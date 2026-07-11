@@ -1,6 +1,8 @@
 import type { Clinic } from "@prisma/client";
 import { resolveEscalationAction, checkInAction } from "@/lib/actions/receptionist";
 import { EscalationInstructionForm } from "./EscalationInstructionForm";
+import { EditAppointmentModal } from "./EditAppointmentModal";
+import { CancelAppointmentButton } from "./CancelAppointmentButton";
 import {
   AlertIcon,
   CalendarIcon,
@@ -190,6 +192,7 @@ export function OverviewTab({
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center",
+                    flexWrap: "wrap",
                     gap: 10,
                   }}
                 >
@@ -231,7 +234,7 @@ export function OverviewTab({
                     </div>
                   </div>
 
-                  <div style={{ display: "flex", gap: 6, flexShrink: 0, alignItems: "center" }}>
+                  <div className="appt-row-actions" style={{ display: "flex", gap: 6, flexShrink: 0, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
                     <span
                       style={{
                         fontSize: 10,
@@ -266,6 +269,13 @@ export function OverviewTab({
                           Check in
                         </button>
                       </form>
+                    )}
+
+                    {(a.status === "CONFIRMED" || a.status === "CHECKED_IN") && (
+                      <>
+                        <EditAppointmentModal appointment={a} timeZone={timeZone} />
+                        <CancelAppointmentButton appointmentId={a.id} />
+                      </>
                     )}
                   </div>
                 </div>

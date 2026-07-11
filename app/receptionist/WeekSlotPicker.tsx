@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition, useEffect } from "react";
-import { bookWalkInAction } from "@/lib/actions/receptionist";
 
 export interface DaySlot {
   id: string;
@@ -18,15 +17,13 @@ export interface DayRow {
 
 export function WeekSlotPicker({
   days,
-  doctorId,
-  patientName,
-  patientPhone,
+  onSave,
+  saveLabel = "Save appointment",
   preSelectedSlotId,
 }: {
   days: DayRow[];
-  doctorId: string;
-  patientName: string;
-  patientPhone: string;
+  onSave: (slotId: string) => Promise<void> | void;
+  saveLabel?: string;
   preSelectedSlotId?: string;
 }) {
   const [selected, setSelected] = useState<{ id: string; label: string } | null>(null);
@@ -46,13 +43,8 @@ export function WeekSlotPicker({
 
   function handleSave() {
     if (!selected) return;
-    const formData = new FormData();
-    formData.set("doctorId", doctorId);
-    formData.set("slotId", selected.id);
-    formData.set("patientName", patientName);
-    formData.set("patientPhone", patientPhone);
     startTransition(async () => {
-      await bookWalkInAction(formData);
+      await onSave(selected.id);
     });
   }
 
@@ -106,7 +98,7 @@ export function WeekSlotPicker({
           )}
         </span>
         <button type="button" onClick={handleSave} disabled={!selected || pending}>
-          {pending ? "Saving…" : "Save appointment"}
+          {pending ? "Saving…" : saveLabel}
         </button>
       </div>
     </div>
