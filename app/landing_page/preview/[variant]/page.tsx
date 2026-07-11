@@ -6,6 +6,7 @@ import { PasswordForm } from "../../PasswordForm";
 import LandingAnimated from "../../../LandingAnimated";
 import LandingBento from "../../../LandingBento";
 import LandingClassic from "../../../LandingClassic";
+import LandingGlass from "../../../LandingGlass";
 
 export default async function LandingPreviewPage({
   params,
@@ -23,6 +24,7 @@ export default async function LandingPreviewPage({
   const { variant } = await params;
   if (variant === "animated") return <LandingAnimated />;
   if (variant === "bento") return <LandingBento />;
+  if (variant === "glass") return <LandingGlass />;
   if (variant === "classic") return <LandingClassic />;
   notFound();
 }

@@ -21,6 +21,11 @@ const OPTIONS = [
     label: "Bento",
     description: "Bold bento-grid layout, hard black borders, violet accent — clean neo-SaaS style, minimal animation.",
   },
+  {
+    id: "glass" as const,
+    label: "Glass",
+    description: "Glassmorphism on a dark glowing gradient — frosted panels, cyan/violet accents, futuristic and clean.",
+  },
 ];
 
 export default async function LandingAdminPage() {

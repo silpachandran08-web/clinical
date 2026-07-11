@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { env } from "@/src/config/env";
 import { LANDING_ADMIN_COOKIE_NAME, signGateToken, timingSafeEqual, verifyGateToken } from "@/lib/landingAdminAuth";
-import { setLandingVariant, type LandingVariant } from "@/src/landingSettings";
+import { setLandingVariant, VALID_VARIANTS, type LandingVariant } from "@/src/landingSettings";
 import type { LandingAdminFormState } from "@/lib/landingAdminFormState";
 
 export async function verifyLandingPasswordAction(
@@ -42,7 +42,7 @@ export async function setLandingVariantAction(formData: FormData) {
   await requireGate();
 
   const variant = String(formData.get("variant") ?? "");
-  if (variant !== "classic" && variant !== "animated" && variant !== "bento") throw new Error("Invalid variant");
+  if (!VALID_VARIANTS.includes(variant as LandingVariant)) throw new Error("Invalid variant");
 
   await setLandingVariant(variant as LandingVariant);
   revalidatePath("/landing_page");

@@ -1,8 +1,8 @@
 import { prisma } from "./db/client";
 
-export type LandingVariant = "classic" | "animated" | "bento";
+export type LandingVariant = "classic" | "animated" | "bento" | "glass";
 
-const VALID_VARIANTS: LandingVariant[] = ["classic", "animated", "bento"];
+export const VALID_VARIANTS: LandingVariant[] = ["classic", "animated", "bento", "glass"];
 
 const SETTING_ID = "global";
 
