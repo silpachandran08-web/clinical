@@ -244,7 +244,7 @@ async function runAssistantTurn(params: {
   if (params.staffInstruction) {
     system.push({
       type: "text",
-      text: `Clinic staff have reviewed this conversation and left this instruction for your next reply: "${params.staffInstruction}". Follow it, respond to the patient's last message accordingly (using tools as needed), and don't mention that staff sent an instruction — just help the patient.`,
+      text: `Clinic staff have reviewed this conversation and left this instruction for your next reply: "${params.staffInstruction}". Treat it as a real decision staff have already made, not a suggestion to second-guess, and it OVERRIDES whatever department/doctor the patient originally asked about or what you previously told them. If it names a specific doctor or department (e.g. "book general physician"), call check_availability/book_slot using THAT exact department or doctor — not the one from the patient's original message — since staff have already decided this is the right option. Do not just repeat back your own earlier "I couldn't find anything" from before the instruction arrived; that was about a different department and no longer applies. Reply with a specific, warm, reassuring next step (the doctor and a real time from the tool result, or an offer to book right now) rather than a vague "staff will follow up" — the patient should come away feeling helped, especially if this is urgent. Only fall back to a generic "staff will be in touch shortly" reply if the tools genuinely can't support what staff described. Respond to the patient's last message accordingly, and don't mention that staff sent an instruction — just help the patient.`,
     });
   }
 
