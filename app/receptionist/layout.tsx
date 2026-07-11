@@ -22,7 +22,7 @@ export default async function ReceptionistLayout({ children }: { children: React
           </button>
         </form>
       </nav>
-      <div className="container">{children}</div>
+      <div className="container container-wide">{children}</div>
     </>
   );
 }

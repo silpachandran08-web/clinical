@@ -164,7 +164,7 @@ export default async function ReceptionistPage({
 
       <TabsNav />
 
-      <div style={{ padding: "0 24px", maxWidth: "1400px", margin: "0 auto" }}>
+      <div>
         {currentTab === "overview" && (
           <OverviewTab
             clinic={clinic}

@@ -155,7 +155,6 @@ h2 {
   display: flex;
   border-bottom: 1px solid var(--border-soft);
   background: var(--surface);
-  padding: 0 24px;
   gap: 0;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
