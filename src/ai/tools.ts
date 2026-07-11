@@ -48,6 +48,12 @@ export const toolDefinitions: Anthropic.Tool[] = [
     input_schema: { type: "object", properties: {} },
   },
   {
+    name: "get_visit_history",
+    description:
+      "Look up this patient's past visits (completed, cancelled, or no-show) — which doctor, when, and the outcome, plus any recommended follow-up date. Does NOT include clinical notes, diagnosis, or prescription details — those are never shared over WhatsApp. If the patient specifically asks for notes or a prescription, use escalate_to_human instead.",
+    input_schema: { type: "object", properties: {} },
+  },
+  {
     name: "cancel_appointment",
     description: "Cancel one of the patient's existing appointments.",
     input_schema: {
@@ -140,6 +146,21 @@ export async function runTool(name: string, input: any, ctx: ToolContext): Promi
         appointmentId: a.appointmentId,
         doctorName: a.doctorName,
         startsAt: a.startsAt.toISOString(),
+      }));
+    }
+
+    case "get_visit_history": {
+      // Native-only, not routed through EhrAdapter — same precedent as
+      // escalate_to_human: this is our own Postgres's enrichment data, not
+      // part of the "plug into any clinical solution" scheduling contract.
+      // For a CUSTOM_API clinic this just returns an empty list.
+      const { getPatientVisitHistory } = await import("../scheduling/bookingService");
+      const visits = await getPatientVisitHistory(ctx.clinic.id, ctx.patientPhone);
+      return visits.map((v) => ({
+        doctorName: v.doctor.name,
+        date: v.slot.startsAt.toISOString(),
+        status: v.status,
+        followUpDate: v.consultation?.followUpDate?.toISOString() ?? null,
       }));
     }
 

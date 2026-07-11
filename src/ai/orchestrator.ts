@@ -11,6 +11,10 @@ const anthropic = new Anthropic({ apiKey: env.anthropicApiKey });
 
 const MAX_TOOL_ROUNDS = 6;
 const HISTORY_MESSAGES = 20; // recent turns kept as context
+// A patient who's been quiet this long gets treated as starting a fresh
+// conversation on their next message — no assumed continuity with whatever
+// was said before the gap (see historyResetAt below).
+const STALE_CONVERSATION_MS = 5 * 24 * 60 * 60 * 1000;
 
 /**
  * Handles one inbound WhatsApp message end-to-end: loads/creates the
@@ -22,9 +26,16 @@ export async function handleInboundMessage(params: {
   patientPhone: string;
   body: string;
 }): Promise<string> {
-  const existingId = await findConversationId(params.clinic.id, params.patientPhone);
-  const conversation = existingId
-    ? await prisma.conversation.update({ where: { id: existingId }, data: { lastMessageAt: new Date() } })
+  const existing = await findConversation(params.clinic.id, params.patientPhone);
+  // Computed from the OLD lastMessageAt, before the update below overwrites it.
+  const isStale = existing ? Date.now() - existing.lastMessageAt.getTime() > STALE_CONVERSATION_MS : false;
+  // Captured BEFORE the inbound message is persisted below, so the "gte"
+  // history filter in runAssistantTurn is guaranteed to still include this
+  // turn's own message — using a timestamp captured after that insert would
+  // exclude it and leave Claude with zero messages (400 from the API).
+  const turnStartedAt = new Date();
+  const conversation = existing
+    ? await prisma.conversation.update({ where: { id: existing.id }, data: { lastMessageAt: new Date() } })
     : await prisma.conversation.create({
         data: { clinicId: params.clinic.id, patientPhone: params.patientPhone },
       });
@@ -35,7 +46,7 @@ export async function handleInboundMessage(params: {
 
   // Brand new conversation: ask which language to continue in before anything
   // else, rather than silently guessing from the first message.
-  if (!existingId) {
+  if (!existing) {
     const question =
       "Hi! Would you like to continue in English or Arabic?\nهلا! تبي نكمل بالعربي ولا الإنجليزي؟";
     await prisma.message.create({
@@ -98,6 +109,7 @@ export async function handleInboundMessage(params: {
     patientPhone: params.patientPhone,
     conversationId: conversation.id,
     locale: state.locale,
+    historyResetAt: isStale ? turnStartedAt : undefined,
   });
 
   await prisma.message.create({
@@ -121,10 +133,11 @@ export async function handleStaffInstruction(params: {
   patientPhone: string;
   instruction: string;
 }): Promise<string> {
-  const conversationId = await findConversationId(params.clinic.id, params.patientPhone);
-  if (!conversationId) {
+  const existing = await findConversation(params.clinic.id, params.patientPhone);
+  if (!existing) {
     throw new Error("No conversation found for this patient — nothing for the AI to continue");
   }
+  const conversationId = existing.id;
   const conversation = await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } });
   const state = (conversation.state as { locale?: "AR" | "EN" } | null) ?? {};
   const locale = state.locale ?? "EN";
@@ -155,6 +168,11 @@ async function runAssistantTurn(params: {
   conversationId: string;
   locale: "AR" | "EN";
   staffInstruction?: string;
+  // Set when the patient has been quiet past STALE_CONVERSATION_MS: only
+  // messages from this point on are loaded, so Claude starts this turn with
+  // no assumed continuity from the stale chat (nothing is deleted — older
+  // messages just aren't fed into context for this turn).
+  historyResetAt?: Date;
 }): Promise<string> {
   // The most RECENT window, not the oldest: `asc` + take would return the
   // first 20 messages ever, so once a conversation grew past the window the
@@ -163,7 +181,10 @@ async function runAssistantTurn(params: {
   // with a user message"), silently killing replies on long conversations.
   const priorMessages = (
     await prisma.message.findMany({
-      where: { conversationId: params.conversationId },
+      where: {
+        conversationId: params.conversationId,
+        ...(params.historyResetAt ? { createdAt: { gte: params.historyResetAt } } : {}),
+      },
       orderBy: { createdAt: "desc" },
       take: HISTORY_MESSAGES,
     })
@@ -298,12 +319,15 @@ async function createEscalationIfNoneOpen(clinicId: string, patientPhone: string
   await prisma.staffEscalation.create({ data: { clinicId, patientPhone, reason } });
 }
 
-async function findConversationId(clinicId: string, patientPhone: string): Promise<string | null> {
-  const existing = await prisma.conversation.findFirst({
+async function findConversation(
+  clinicId: string,
+  patientPhone: string,
+): Promise<{ id: string; lastMessageAt: Date } | null> {
+  return prisma.conversation.findFirst({
     where: { clinicId, patientPhone },
     orderBy: { lastMessageAt: "desc" },
+    select: { id: true, lastMessageAt: true },
   });
-  return existing?.id ?? null;
 }
 
 /** Arabic script anywhere in the reply, or the word "Arabic" spelled in Latin script, both mean AR; everything else defaults to EN. */

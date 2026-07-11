@@ -117,3 +117,22 @@ export async function getPatientAppointments(clinicId: string, patientPhone: str
     orderBy: { slot: { startsAt: "asc" } },
   });
 }
+
+/**
+ * Past visits only (completed, cancelled, no-show) — logistics only. Deliberately
+ * selects just `followUpDate` off the consultation, never `notes`/`prescription`:
+ * that's real clinical content and stays doctor-eyes-only, not something the
+ * WhatsApp AI reads back to a patient.
+ */
+export async function getPatientVisitHistory(clinicId: string, patientPhone: string, limit = 5) {
+  return prisma.appointment.findMany({
+    where: {
+      clinicId,
+      status: { in: ["COMPLETED", "CANCELLED", "NO_SHOW"] },
+      patient: { phone: patientPhone },
+    },
+    include: { doctor: true, slot: true, consultation: { select: { followUpDate: true } } },
+    orderBy: { slot: { startsAt: "desc" } },
+    take: limit,
+  });
+}
