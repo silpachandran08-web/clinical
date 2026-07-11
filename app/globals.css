@@ -54,6 +54,13 @@ a:hover {
   padding: 28px 24px 64px;
 }
 
+/* Wider variant for data-dense screens (doctor dashboard) so content can
+   spread into the large empty margins on bigger monitors instead of
+   sitting in a narrow centered column. */
+.container-wide {
+  max-width: 1440px;
+}
+
 .card {
   background: var(--surface);
   border: 1px solid var(--border-soft);
@@ -655,6 +662,31 @@ tbody tr:last-child td {
 
 .dashboard-sidebar .card {
   margin-bottom: 0;
+}
+
+/* On wide monitors, spread into the extra horizontal room instead of
+   leaving it empty: widen the split and let the sidebar's cards sit
+   side-by-side (e.g. calendar + search) rather than stacking, so there's
+   less to scroll past to reach the search card. */
+@media (min-width: 1300px) {
+  .dashboard-layout {
+    grid-template-columns: 1.7fr 1.15fr;
+    gap: 24px;
+  }
+
+  .dashboard-sidebar {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    align-items: start;
+  }
+
+  /* The day-appointments list has a table that needs real width for
+     patient names to stay readable — never squeeze it into one half of
+     the sidebar split. */
+  .dashboard-sidebar .day-list-card {
+    grid-column: 1 / -1;
+  }
 }
 
 /* --- Doctor availability: compact row list instead of a wide table, so it

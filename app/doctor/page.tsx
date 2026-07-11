@@ -233,7 +233,7 @@ export default async function DoctorQueuePage({
           </div>
 
           {selectedDay && (
-            <div className="card">
+            <div className="card day-list-card">
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
                 <h2 className="card-title-icon" style={{ margin: 0 }}>
                   <CalendarIcon />

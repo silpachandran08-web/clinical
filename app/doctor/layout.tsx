@@ -38,7 +38,7 @@ export default async function DoctorLayout({ children }: { children: React.React
           </button>
         </form>
       </nav>
-      <div className="container">{children}</div>
+      <div className="container container-wide">{children}</div>
     </>
   );
 }
