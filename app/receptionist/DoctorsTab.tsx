@@ -26,6 +26,18 @@ interface DoctorsTabProps {
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
+/**
+ * `day.date` is a UTC timestamp for midnight in the CLINIC's timezone (e.g.
+ * 21:00 UTC the prior day for Asia/Riyadh, UTC+3) — `Date.getUTCDay()` reads
+ * the raw UTC weekday and comes out a day behind whenever that offset crosses
+ * a UTC day boundary. Read the weekday back through the clinic's timezone
+ * instead, the same way `dateLabel` below already reads the date.
+ */
+function weekdayInTimezone(date: Date, timeZone: string): number {
+  const label = date.toLocaleDateString("en-US", { weekday: "short", timeZone });
+  return DAY_NAMES.indexOf(label);
+}
+
 export function DoctorsTab({ clinic, doctors, now }: DoctorsTabProps) {
   const router = useRouter();
   // Compute working days (all days except weekends)
@@ -274,7 +286,7 @@ export function DoctorsTab({ clinic, doctors, now }: DoctorsTabProps) {
                     {currentWeek.days
                       .filter((day) => {
                         // Only show working days
-                        if (!workingDayNums.includes(day.date.getUTCDay())) return false;
+                        if (!workingDayNums.includes(weekdayInTimezone(day.date, clinic.timezone))) return false;
                         // Only show today and future dates
                         const dayStart = new Date(day.date);
                         dayStart.setUTCHours(0, 0, 0, 0);
@@ -283,7 +295,7 @@ export function DoctorsTab({ clinic, doctors, now }: DoctorsTabProps) {
                         return dayStart.getTime() >= todayStart.getTime();
                       })
                       .map((day, idx) => {
-                        const dayOfWeek = day.date.getUTCDay();
+                        const dayOfWeek = weekdayInTimezone(day.date, clinic.timezone);
                         const dayLabel = DAY_NAMES[dayOfWeek];
                         const dateLabel = day.date.toLocaleDateString(undefined, {
                           month: "short",
