@@ -229,7 +229,7 @@ function Navbar() {
           <span className="cb-brand-mark">
             <StethoscopeIcon />
           </span>
-          ClinicBook Assistant
+          <span className="cb-brand-text">ClinicBook Assistant</span>
         </Link>
         <div className="cb-nav-links">
           <a href="#features">Features</a>

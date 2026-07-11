@@ -21,6 +21,15 @@
   --cb-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
   --cb-shadow-card: 0 1px 3px rgba(15, 23, 42, 0.04), 0 12px 40px -16px rgba(15, 23, 42, 0.12);
   --cb-shadow-glow: 0 0 40px -12px var(--cb-cyan-glow), 0 0 80px -28px var(--cb-blue-glow);
+
+  /* Orbit hero visual — real size, not a visual transform:scale(), so it
+     actually shrinks the layout footprint (and the nodes' translateZ orbit
+     radius) at narrower breakpoints instead of just rendering smaller while
+     still occupying/overflowing a 520px box. */
+  --cb-orbit-size: 520px;
+  --cb-orbit-radius: 250px;
+  --cb-orbit-core-size: 110px;
+  --cb-node-width: 140px;
 }
 
 html.lenis,
@@ -376,8 +385,8 @@ html.lenis body {
 
 .cb-orbit-system {
   position: relative;
-  width: 520px;
-  height: 520px;
+  width: var(--cb-orbit-size);
+  height: var(--cb-orbit-size);
   transform-style: preserve-3d;
   transform: rotateX(18deg);
 }
@@ -393,21 +402,21 @@ html.lenis body {
 }
 
 .cb-orbit-ring.a {
-  width: 500px;
-  height: 500px;
+  width: calc(var(--cb-orbit-size) * 0.962);
+  height: calc(var(--cb-orbit-size) * 0.962);
   animation: ringRotate 60s linear infinite;
 }
 
 .cb-orbit-ring.b {
-  width: 380px;
-  height: 380px;
+  width: calc(var(--cb-orbit-size) * 0.731);
+  height: calc(var(--cb-orbit-size) * 0.731);
   border-color: rgba(8, 145, 178, 0.25);
   animation: ringRotate 50s linear infinite reverse;
 }
 
 .cb-orbit-ring.c {
-  width: 260px;
-  height: 260px;
+  width: calc(var(--cb-orbit-size) * 0.5);
+  height: calc(var(--cb-orbit-size) * 0.5);
   border-color: rgba(37, 99, 235, 0.2);
   animation: ringRotate 40s linear infinite;
 }
@@ -422,8 +431,8 @@ html.lenis body {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 110px;
-  height: 110px;
+  width: var(--cb-orbit-core-size);
+  height: var(--cb-orbit-core-size);
   border-radius: 50%;
   background: radial-gradient(circle at 35% 35%, var(--cb-cyan-light), var(--cb-cyan));
   box-shadow:
@@ -442,8 +451,8 @@ html.lenis body {
 }
 
 .cb-core-icon {
-  width: 48px;
-  height: 48px;
+  width: calc(var(--cb-orbit-core-size) * 0.436);
+  height: calc(var(--cb-orbit-core-size) * 0.436);
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.95);
   display: flex;
@@ -457,9 +466,9 @@ html.lenis body {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 140px;
-  margin-left: -70px;
-  margin-top: -70px;
+  width: var(--cb-node-width);
+  margin-left: calc(var(--cb-node-width) / -2);
+  margin-top: calc(var(--cb-node-width) / -2);
   transform-style: preserve-3d;
   animation: nodeOrbit 50s linear infinite;
 }
@@ -472,8 +481,8 @@ html.lenis body {
 .cb-orbit-node.f { animation-delay: -41.66s; }
 
 @keyframes nodeOrbit {
-  from { transform: rotateY(0deg) translateZ(250px) rotateY(0deg); }
-  to { transform: rotateY(360deg) translateZ(250px) rotateY(-360deg); }
+  from { transform: rotateY(0deg) translateZ(var(--cb-orbit-radius)) rotateY(0deg); }
+  to { transform: rotateY(360deg) translateZ(var(--cb-orbit-radius)) rotateY(-360deg); }
 }
 
 .cb-node-card {
@@ -1222,10 +1231,9 @@ html.lenis body {
   .cb-orbit-scene {
     order: -1;
     min-height: 420px;
-  }
-
-  .cb-orbit-system {
-    transform: scale(0.75);
+    --cb-orbit-size: 400px;
+    --cb-orbit-radius: 190px;
+    --cb-orbit-core-size: 86px;
   }
 
   .cb-stats-inner {
@@ -1298,12 +1306,42 @@ html.lenis body {
     justify-content: space-between;
   }
 
+  .cb-brand-text {
+    display: none;
+  }
+
+  .cb-nav-actions .cb-btn-ghost {
+    display: none;
+  }
+
   .cb-hero h1 {
     font-size: 30px;
   }
 
-  .cb-orbit-system {
-    transform: scale(0.55);
+  .cb-orbit-scene {
+    min-height: 320px;
+    --cb-orbit-size: 280px;
+    --cb-orbit-radius: 128px;
+    --cb-orbit-core-size: 58px;
+    --cb-node-width: 82px;
+  }
+
+  .cb-node-card {
+    padding: 8px;
+  }
+
+  .cb-node-icon {
+    width: 24px;
+    height: 24px;
+    margin-bottom: 5px;
+  }
+
+  .cb-node-card h4 {
+    font-size: 10.5px;
+  }
+
+  .cb-node-card p {
+    font-size: 9px;
   }
 
   .cb-section {
