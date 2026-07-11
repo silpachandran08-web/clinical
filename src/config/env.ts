@@ -34,4 +34,8 @@ export const env = {
   },
 
   staffEscalationWebhookUrl: process.env.STAFF_ESCALATION_WEBHOOK_URL ?? "",
+
+  // Gates the standalone /landing_page console (which landing design is
+  // live at "/") — unset means the console always rejects, not always allows.
+  landingAdminPassword: process.env.LANDING_ADMIN_PASSWORD ?? "",
 };

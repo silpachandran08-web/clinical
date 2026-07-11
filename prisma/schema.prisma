@@ -470,3 +470,12 @@ model StaffEscalation {
 
   @@index([clinicId, status])
 }
+
+// Platform-wide (not per-clinic) setting controlling which design renders at
+// "/". Always exactly one row, fixed id "global" — read on every request to
+// "/", written only from the password-gated /landing_page console.
+model LandingPageSetting {
+  id        String   @id @default("global")
+  variant   String   @default("classic") // "classic" | "animated"
+  updatedAt DateTime @updatedAt
+}
