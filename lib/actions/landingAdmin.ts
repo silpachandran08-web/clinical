@@ -42,7 +42,7 @@ export async function setLandingVariantAction(formData: FormData) {
   await requireGate();
 
   const variant = String(formData.get("variant") ?? "");
-  if (variant !== "classic" && variant !== "animated") throw new Error("Invalid variant");
+  if (variant !== "classic" && variant !== "animated" && variant !== "bento") throw new Error("Invalid variant");
 
   await setLandingVariant(variant as LandingVariant);
   revalidatePath("/landing_page");

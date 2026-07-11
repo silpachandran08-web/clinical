@@ -4,6 +4,7 @@ import { env } from "@/src/config/env";
 import { LANDING_ADMIN_COOKIE_NAME, verifyGateToken } from "@/lib/landingAdminAuth";
 import { PasswordForm } from "../../PasswordForm";
 import LandingAnimated from "../../../LandingAnimated";
+import LandingBento from "../../../LandingBento";
 import LandingClassic from "../../../LandingClassic";
 
 export default async function LandingPreviewPage({
@@ -21,6 +22,7 @@ export default async function LandingPreviewPage({
 
   const { variant } = await params;
   if (variant === "animated") return <LandingAnimated />;
+  if (variant === "bento") return <LandingBento />;
   if (variant === "classic") return <LandingClassic />;
   notFound();
 }

@@ -16,6 +16,11 @@ const OPTIONS = [
     label: "Animated",
     description: "GSAP scroll animations, Framer Motion, and Lenis smooth scroll — the newer, more dynamic design.",
   },
+  {
+    id: "bento" as const,
+    label: "Bento",
+    description: "Bold bento-grid layout, hard black borders, violet accent — clean neo-SaaS style, minimal animation.",
+  },
 ];
 
 export default async function LandingAdminPage() {
