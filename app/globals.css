@@ -56,9 +56,10 @@ a:hover {
 
 /* Wider variant for data-dense screens (doctor dashboard) so content can
    spread into the large empty margins on bigger monitors instead of
-   sitting in a narrow centered column. */
+   sitting in a narrow centered column. No cap at all — fill the viewport
+   like .nav already does, just with the same side padding. */
 .container-wide {
-  max-width: 1440px;
+  max-width: none;
 }
 
 .card {
@@ -679,13 +680,6 @@ tbody tr:last-child td {
     grid-template-columns: 1fr 1fr;
     gap: 18px;
     align-items: start;
-  }
-
-  /* The day-appointments list has a table that needs real width for
-     patient names to stay readable — never squeeze it into one half of
-     the sidebar split. */
-  .dashboard-sidebar .day-list-card {
-    grid-column: 1 / -1;
   }
 }
 

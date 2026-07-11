@@ -68,6 +68,11 @@ export default async function DoctorQueuePage({
   const currentGender = current?.patient.gender ? GENDER_ABBR[current.patient.gender] : null;
   const currentDemographics = [currentAge, currentGender].filter(Boolean).join(", ");
 
+  const baseQuery = new URLSearchParams();
+  if (params.month) baseQuery.set("month", params.month);
+  if (params.day) baseQuery.set("day", params.day);
+  const clearSearchHref = `/doctor${baseQuery.toString() ? `?${baseQuery.toString()}` : ""}`;
+
   return (
     <div>
       <AutoRefresh />
@@ -213,27 +218,9 @@ export default async function DoctorQueuePage({
               </table>
             )}
           </div>
-        </div>
-
-        <aside className="dashboard-sidebar">
-          <div className="card">
-            <h2 className="card-title-icon">
-              <CalendarIcon /> My calendar
-            </h2>
-            <MonthCalendar
-              monthStart={monthStart}
-              today={now}
-              dayCounts={dayCounts}
-              timeZone={clinic.timezone}
-              prevMonthHref={`/doctor?month=${shiftMonthParam(monthStart, -1, clinic.timezone)}`}
-              nextMonthHref={`/doctor?month=${shiftMonthParam(monthStart, 1, clinic.timezone)}`}
-              dayHref={(key) => `/doctor?month=${formatMonthParam(monthStart, clinic.timezone)}&day=${key}`}
-              selectedDayKey={params.day}
-            />
-          </div>
 
           {selectedDay && (
-            <div className="card day-list-card">
+            <div className="card">
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
                 <h2 className="card-title-icon" style={{ margin: 0 }}>
                   <CalendarIcon />
@@ -293,6 +280,28 @@ export default async function DoctorQueuePage({
               )}
             </div>
           )}
+        </div>
+
+        <aside className="dashboard-sidebar">
+          <div className="card">
+            <h2 className="card-title-icon">
+              <CalendarIcon /> My calendar
+            </h2>
+            <MonthCalendar
+              monthStart={monthStart}
+              today={now}
+              dayCounts={dayCounts}
+              timeZone={clinic.timezone}
+              prevMonthHref={`/doctor?month=${shiftMonthParam(monthStart, -1, clinic.timezone)}`}
+              nextMonthHref={`/doctor?month=${shiftMonthParam(monthStart, 1, clinic.timezone)}`}
+              dayHref={(key) =>
+                key === params.day
+                  ? `/doctor?month=${formatMonthParam(monthStart, clinic.timezone)}`
+                  : `/doctor?month=${formatMonthParam(monthStart, clinic.timezone)}&day=${key}`
+              }
+              selectedDayKey={params.day}
+            />
+          </div>
 
           <div className="card">
             <h2 className="card-title-icon">
@@ -303,9 +312,16 @@ export default async function DoctorQueuePage({
                 Name, phone, or email
                 <input name="q" defaultValue={q} placeholder="Search all patients" />
               </label>
-              <button type="submit" className="secondary" style={{ alignSelf: "flex-start" }}>
-                <SearchIcon size={15} /> Search
-              </button>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <button type="submit" className="secondary" style={{ alignSelf: "flex-start" }}>
+                  <SearchIcon size={15} /> Search
+                </button>
+                {q && (
+                  <a href={clearSearchHref} className="btn-link">
+                    ✕ Clear
+                  </a>
+                )}
+              </div>
             </form>
 
             {q && (
