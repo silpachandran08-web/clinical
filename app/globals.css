@@ -197,7 +197,6 @@ h2 {
   grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
   gap: 12px;
   margin-bottom: 16px;
-  padding: 0 24px;
 }
 
 .stat-card {
@@ -250,7 +249,6 @@ h2 {
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 16px;
-  padding: 0 24px;
 }
 
 .page-header h1 {
