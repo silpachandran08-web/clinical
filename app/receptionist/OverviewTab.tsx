@@ -94,75 +94,65 @@ export function OverviewTab({
                   background: "var(--surface-2)",
                   borderRadius: "var(--radius-sm)",
                   borderLeft: e.urgent ? "3px solid var(--danger)" : "3px solid var(--warning)",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  gap: 12,
                 }}
               >
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                    <PatientIcon size={14} />
-                    <strong style={{ fontSize: 13, color: "var(--text)" }}>
-                      {e.patientName ?? e.patientPhone}
-                    </strong>
-                    {e.urgent && (
-                      <span
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                      <PatientIcon size={14} />
+                      <strong style={{ fontSize: 13, color: "var(--text)" }}>
+                        {e.patientName ?? e.patientPhone}
+                      </strong>
+                      {e.urgent && (
+                        <span
+                          style={{
+                            fontSize: 10,
+                            fontWeight: 700,
+                            padding: "2px 6px",
+                            background: "var(--danger-soft)",
+                            color: "var(--danger)",
+                            borderRadius: 3,
+                          }}
+                        >
+                          URGENT
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 4 }}>
+                      {e.reason}
+                    </div>
+                    <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                      {e.createdAt.toLocaleString(undefined, {
+                        month: "short",
+                        day: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        timeZone,
+                      })}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                    <form action={resolveEscalationAction} style={{ margin: 0 }}>
+                      <input type="hidden" name="escalationId" value={e.id} />
+                      <button
+                        type="submit"
                         style={{
-                          fontSize: 10,
-                          fontWeight: 700,
-                          padding: "2px 6px",
-                          background: "var(--danger-soft)",
-                          color: "var(--danger)",
-                          borderRadius: 3,
+                          fontSize: 12,
+                          padding: "5px 10px",
+                          background: "var(--success)",
+                          color: "white",
+                          border: "none",
+                          borderRadius: 4,
+                          cursor: "pointer",
+                          fontWeight: 600,
                         }}
                       >
-                        URGENT
-                      </span>
-                    )}
-                  </div>
-                  <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 4 }}>
-                    {e.reason}
-                  </div>
-                  <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
-                    {e.createdAt.toLocaleString(undefined, {
-                      month: "short",
-                      day: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                      timeZone,
-                    })}
+                        Done
+                      </button>
+                    </form>
                   </div>
                 </div>
-                <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                  <a
-                    className="btn-link"
-                    href={`https://wa.me/${e.patientPhone.replace("+", "")}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{ fontSize: 12, whiteSpace: "nowrap" }}
-                  >
-                    WhatsApp
-                  </a>
-                  <form action={resolveEscalationAction} style={{ margin: 0 }}>
-                    <input type="hidden" name="escalationId" value={e.id} />
-                    <button
-                      type="submit"
-                      style={{
-                        fontSize: 12,
-                        padding: "5px 10px",
-                        background: "var(--success)",
-                        color: "white",
-                        border: "none",
-                        borderRadius: 4,
-                        cursor: "pointer",
-                        fontWeight: 600,
-                      }}
-                    >
-                      Done
-                    </button>
-                  </form>
-                </div>
+                <EscalationInstructionForm escalationId={e.id} />
               </div>
             ))}
           </div>

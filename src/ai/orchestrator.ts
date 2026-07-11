@@ -201,6 +201,18 @@ async function runAssistantTurn(params: {
     messages.shift();
   }
 
+  // A staff instruction doesn't add a new inbound patient message, so the
+  // window can end on our own prior reply. Without a trailing user turn,
+  // Claude treats the last assistant message as a prefill and just continues
+  // it (often producing nothing new at all) instead of composing a fresh
+  // reply — so give it an explicit turn to act on the staff instruction.
+  if (params.staffInstruction && (messages.length === 0 || messages[messages.length - 1].role !== "user")) {
+    messages.push({
+      role: "user",
+      content: "(No new message from the patient — staff has left an instruction for you below. Reply to them now accordingly.)",
+    });
+  }
+
   // Prompt caching: mark cache breakpoints on the stable prefix (tools, then
   // the system prompt, then the conversation history up to and including the
   // just-received patient message). Everything before a breakpoint is cached
