@@ -96,7 +96,7 @@ export default async function ReceptionistPage({
     weeksData: Array<{ weekStart: Date; weekLabel: string; days: Awaited<ReturnType<typeof listWeekSlots>> }>;
   }> = [];
   if (currentTab === "doctors") {
-    const activeDoctors = allDoctors.filter((d) => d.active);
+    const activeDoctors = allDoctors.filter((d) => d.active && d.department.isBookable);
     const weeksByDoctor = await listMultiWeekSlotsForDoctors(
       session.clinicId,
       activeDoctors.map((d) => d.id),
@@ -184,12 +184,14 @@ export default async function ReceptionistPage({
         {currentTab === "booking" && (
           <BookingTab
             clinic={clinic}
-            allDoctors={allDoctors.map((d) => ({
-              id: d.id,
-              name: d.name,
-              active: d.active,
-              department: { name: d.department.name },
-            }))}
+            allDoctors={allDoctors
+              .filter((d) => d.department.isBookable)
+              .map((d) => ({
+                id: d.id,
+                name: d.name,
+                active: d.active,
+                department: { name: d.department.name },
+              }))}
             patientQuery={patientQuery}
             patientResults={patientResults}
             selectedDoctorId={selectedDoctorId}

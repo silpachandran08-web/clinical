@@ -8,7 +8,10 @@ export async function addDepartmentAction(formData: FormData) {
   const session = await getSession();
   if (!session) throw new Error("Not authenticated");
 
-  const payload = createDepartmentSchema.parse({ name: String(formData.get("name") ?? "") });
+  const payload = createDepartmentSchema.parse({
+    name: String(formData.get("name") ?? ""),
+    isBookable: formData.get("isBookable") === "on",
+  });
   await createDepartment(session.clinicId, payload);
 
   revalidatePath("/admin/departments");

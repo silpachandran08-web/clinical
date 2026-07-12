@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import {
+  advanceAppointmentStage,
   completeConsultation,
   completeConsultationSchema,
   setDoctorAvailability,
@@ -64,6 +65,14 @@ export async function updatePatientDetailsAction(formData: FormData) {
 
   await updatePatientDetails(session.clinicId, session.doctorId, patientId, payload);
   revalidatePath(`/doctor/patients/${patientId}`);
+}
+
+export async function advanceStageAction(formData: FormData) {
+  const session = await requireDoctorSession();
+  const appointmentId = String(formData.get("appointmentId"));
+  await advanceAppointmentStage(session.clinicId, session.doctorId, appointmentId);
+  revalidatePath("/doctor");
+  revalidatePath("/receptionist");
 }
 
 export async function setDoctorAvailabilityAction(formData: FormData) {

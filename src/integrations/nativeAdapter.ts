@@ -15,7 +15,10 @@ export class NativeAdapter implements EhrAdapter {
       where: {
         clinicId: params.clinicId,
         active: true,
-        ...(params.departmentName ? { department: { name: params.departmentName } } : {}),
+        department: {
+          isBookable: true,
+          ...(params.departmentName ? { name: params.departmentName } : {}),
+        },
       },
       select: { id: true, name: true, department: { select: { name: true } } },
     });

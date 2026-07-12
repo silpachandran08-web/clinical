@@ -47,6 +47,7 @@ export const updateClinicSchema = z.object({
 
 export const createDepartmentSchema = z.object({
   name: z.string().min(1),
+  isBookable: z.coerce.boolean().default(true),
 });
 
 const workingHoursSchema = z.object({
@@ -131,7 +132,37 @@ export async function listDepartments(clinicId: string) {
 }
 
 export async function createDepartment(clinicId: string, input: z.infer<typeof createDepartmentSchema>) {
-  return prisma.department.create({ data: { clinicId, name: input.name } });
+  return prisma.department.create({ data: { clinicId, name: input.name, isBookable: input.isBookable } });
+}
+
+export async function listFlowSteps(clinicId: string, ownerDepartmentId: string) {
+  return prisma.flowStep.findMany({
+    where: { clinicId, ownerDepartmentId },
+    include: { stageDepartment: true },
+    orderBy: { order: "asc" },
+  });
+}
+
+/**
+ * Replaces a department's entire flow sequence in one transaction — simpler
+ * and less error-prone than diffing individual reorder/insert/remove ops
+ * against what's already stored.
+ */
+export async function saveFlowSteps(clinicId: string, ownerDepartmentId: string, stageDepartmentIds: string[]) {
+  if (stageDepartmentIds.includes(ownerDepartmentId)) {
+    throw new Error("A department cannot be its own flow stage");
+  }
+  return prisma.$transaction([
+    prisma.flowStep.deleteMany({ where: { clinicId, ownerDepartmentId } }),
+    prisma.flowStep.createMany({
+      data: stageDepartmentIds.map((stageDepartmentId, order) => ({
+        clinicId,
+        ownerDepartmentId,
+        stageDepartmentId,
+        order,
+      })),
+    }),
+  ]);
 }
 
 export async function listDoctors(clinicId: string) {

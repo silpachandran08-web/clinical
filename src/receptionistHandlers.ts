@@ -22,7 +22,7 @@ function startOfTomorrow(timeZone: string): Date {
 export async function listTodayAppointments(clinicId: string, timeZone: string) {
   return prisma.appointment.findMany({
     where: { clinicId, slot: { startsAt: { gte: startOfToday(timeZone), lt: startOfTomorrow(timeZone) } } },
-    include: { doctor: true, patient: true, slot: true },
+    include: { doctor: true, patient: true, slot: true, currentDepartment: true },
     orderBy: { slot: { startsAt: "asc" } },
   });
 }
@@ -101,10 +101,32 @@ export async function listDoctorsStatusForDay(clinicId: string, date: Date) {
   });
 }
 
+/**
+ * Checked-in appointments normally go straight to CHECKED_IN (the assigned
+ * doctor's own queue). If the appointment's doctor's department has a
+ * configured flow (see FlowStep, admin "Flow" tab), it instead lands in the
+ * first stage's shared department queue as AT_STAGE — see
+ * doctorHandlers.advanceAppointmentStage for how it later reaches CHECKED_IN.
+ */
 export async function checkInAppointment(clinicId: string, appointmentId: string) {
+  const appointment = await prisma.appointment.findFirst({
+    where: { id: appointmentId, clinicId },
+    include: { doctor: { select: { departmentId: true } } },
+  });
+  if (!appointment) {
+    throw new Error("Appointment not found, or not in a state that can be checked in");
+  }
+
+  const firstStep = await prisma.flowStep.findFirst({
+    where: { clinicId, ownerDepartmentId: appointment.doctor.departmentId },
+    orderBy: { order: "asc" },
+  });
+
   const result = await prisma.appointment.updateMany({
     where: { id: appointmentId, clinicId, status: "CONFIRMED" },
-    data: { status: "CHECKED_IN", checkedInAt: new Date() },
+    data: firstStep
+      ? { status: "AT_STAGE", currentDepartmentId: firstStep.stageDepartmentId, checkedInAt: new Date() }
+      : { status: "CHECKED_IN", checkedInAt: new Date() },
   });
   if (result.count === 0) {
     throw new Error("Appointment not found, or not in a state that can be checked in");

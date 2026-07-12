@@ -20,6 +20,10 @@ export default async function DepartmentsPage() {
             Name
             <input name="name" placeholder="e.g. Dermatology" required />
           </label>
+          <label className="card-title-icon" style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <input type="checkbox" name="isBookable" defaultChecked style={{ width: "auto" }} />
+            Bookable by patients (uncheck for process-only departments like &quot;Nurse&quot;)
+          </label>
           <button type="submit">Add department</button>
         </form>
       </div>
@@ -33,6 +37,7 @@ export default async function DepartmentsPage() {
             <thead>
               <tr>
                 <th>Name</th>
+                <th>Bookable</th>
                 <th>Created</th>
               </tr>
             </thead>
@@ -40,6 +45,7 @@ export default async function DepartmentsPage() {
               {departments.map((d) => (
                 <tr key={d.id}>
                   <td>{d.name}</td>
+                  <td>{d.isBookable ? "Yes" : "No"}</td>
                   <td>{d.createdAt.toLocaleDateString()}</td>
                 </tr>
               ))}

@@ -253,6 +253,9 @@ export function OverviewTab({
                     >
                       {a.bookedByStaff ? "Walk-in" : "Online"}
                     </span>
+                    {a.status === "AT_STAGE" && a.currentDepartment && (
+                      <span className="badge">At: {a.currentDepartment.name}</span>
+                    )}
 
                     {a.status === "CONFIRMED" && (
                       <form action={checkInAction} style={{ margin: 0 }}>

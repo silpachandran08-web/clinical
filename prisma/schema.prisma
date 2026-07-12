@@ -29,10 +29,17 @@ enum SlotStatus {
 // Full visit lifecycle, not just "booked or not": CONFIRMED (booked, patient
 // hasn't arrived) -> CHECKED_IN (receptionist marks arrival) -> IN_PROGRESS
 // (doctor started the consultation) -> COMPLETED (notes/prescription saved).
+// AT_STAGE is an optional detour between CHECKED_IN and IN_PROGRESS: when the
+// appointment's doctor's department has configured FlowSteps (see FlowStep),
+// check-in lands here instead, and the patient sits in a shared department
+// queue (Appointment.currentDepartmentId) until every stage is cleared, at
+// which point it becomes CHECKED_IN as normal. Departments with no FlowSteps
+// skip AT_STAGE entirely — check-in goes straight to CHECKED_IN as before.
 // CANCELLED/NO_SHOW are terminal alternatives from CONFIRMED or CHECKED_IN.
 enum AppointmentStatus {
   CONFIRMED
   CHECKED_IN
+  AT_STAGE
   IN_PROGRESS
   COMPLETED
   CANCELLED
@@ -121,17 +128,17 @@ enum PaymentStatus {
 }
 
 model Clinic {
-  id                 String             @id @default(cuid())
-  name               String
-  address            String?            // shown on printed prescriptions alongside the clinic name
-  phone              String?            // shown on printed prescriptions alongside the clinic name
-  receptionistName   String?            // name the WhatsApp AI introduces itself as, e.g. "Sara" — null falls back to a generic role-based introduction
-  timezone           String             @default("Asia/Riyadh")
-  defaultLocale      Locale             @default(AR)
-  isOpen24_7         Boolean            @default(false) // true = clinic operates 24/7, ignore openingTime/closingTime
-  openingTime        String?            @default("08:00") // "HH:MM" format when isOpen24_7 is false
-  closingTime        String?            @default("18:00") // "HH:MM" format when isOpen24_7 is false
-  whatsappNumber     String?            @unique // null until the clinic configures WhatsApp
+  id                    String             @id @default(cuid())
+  name                  String
+  address               String? // shown on printed prescriptions alongside the clinic name
+  phone                 String? // shown on printed prescriptions alongside the clinic name
+  receptionistName      String? // name the WhatsApp AI introduces itself as, e.g. "Sara" — null falls back to a generic role-based introduction
+  timezone              String             @default("Asia/Riyadh")
+  defaultLocale         Locale             @default(AR)
+  isOpen24_7            Boolean            @default(false) // true = clinic operates 24/7, ignore openingTime/closingTime
+  openingTime           String?            @default("08:00") // "HH:MM" format when isOpen24_7 is false
+  closingTime           String?            @default("18:00") // "HH:MM" format when isOpen24_7 is false
+  whatsappNumber        String?            @unique // null until the clinic configures WhatsApp
   // Per-clinic Meta WhatsApp Cloud API credentials — lets each clinic run
   // its own WhatsApp Business number/app instead of one global env-var
   // config. AccessToken/AppSecret are masked in the admin UI once set;
@@ -141,22 +148,22 @@ model Clinic {
   whatsappAccessToken   String?
   whatsappAppSecret     String?
   whatsappVerifyToken   String?
-  weekendDays        Int[]              @default([5, 6]) // Fri=5, Sat=6 (0=Sun..6=Sat)
-  posProvider        PosProvider        @default(MANUAL)
-  posTerminalName    String?            // front-desk label for the physical terminal, e.g. "Front desk mada terminal"
+  weekendDays           Int[]              @default([5, 6]) // Fri=5, Sat=6 (0=Sun..6=Sat)
+  posProvider           PosProvider        @default(MANUAL)
+  posTerminalName       String? // front-desk label for the physical terminal, e.g. "Front desk mada terminal"
   // Terminal-API credentials from the acquirer's merchant onboarding pack
   // (Geidea merchant portal / Neoleap merchant support). Same masking rules
   // as the WhatsApp credentials: key/secret are never echoed back to the
   // browser once saved. All null while posProvider = MANUAL.
-  posMerchantId      String?
-  posApiKey          String?
-  posApiSecret       String?
-  posTerminalId      String?            // the physical device's terminal ID (printed on the terminal / its receipts)
-  integrationMode    IntegrationMode    @default(NATIVE)
-  integrationConfig  Json?              // adapter-specific connection details
-  trialEndsAt        DateTime
-  subscriptionStatus SubscriptionStatus @default(TRIALING)
-  createdAt          DateTime           @default(now())
+  posMerchantId         String?
+  posApiKey             String?
+  posApiSecret          String?
+  posTerminalId         String? // the physical device's terminal ID (printed on the terminal / its receipts)
+  integrationMode       IntegrationMode    @default(NATIVE)
+  integrationConfig     Json? // adapter-specific connection details
+  trialEndsAt           DateTime
+  subscriptionStatus    SubscriptionStatus @default(TRIALING)
+  createdAt             DateTime           @default(now())
 
   users         User[]
   departments   Department[]
@@ -167,18 +174,19 @@ model Clinic {
   transactions  Transaction[]
   escalations   StaffEscalation[]
   payments      Payment[]
+  flowSteps     FlowStep[]
 }
 
 model Transaction {
-  id          String           @id @default(cuid())
+  id          String          @id @default(cuid())
   clinicId    String
-  clinic      Clinic           @relation(fields: [clinicId], references: [id])
+  clinic      Clinic          @relation(fields: [clinicId], references: [id])
   type        TransactionType
-  amount      Decimal          @db.Decimal(10, 2)
+  amount      Decimal         @db.Decimal(10, 2)
   category    String?
   description String?
   occurredAt  DateTime
-  createdAt   DateTime         @default(now())
+  createdAt   DateTime        @default(now())
 
   @@index([clinicId, occurredAt])
 }
@@ -218,43 +226,76 @@ model OtpCode {
 // "General Medicine"). The AI receptionist matches a patient's natural-
 // language request ("I need a skin doctor") against department names, not IDs.
 model Department {
-  id        String   @id @default(cuid())
-  clinicId  String
-  clinic    Clinic   @relation(fields: [clinicId], references: [id])
-  name      String
-  createdAt DateTime @default(now())
+  id         String   @id @default(cuid())
+  clinicId   String
+  clinic     Clinic   @relation(fields: [clinicId], references: [id])
+  name       String
+  // false hides this department from patient-facing pickers (WhatsApp AI
+  // booking + receptionist Booking tab) while it keeps working as a
+  // FlowStep stage — for process-only departments like "Nurse" that
+  // shouldn't be directly bookable by patients.
+  isBookable Boolean  @default(true)
+  createdAt  DateTime @default(now())
 
-  doctors Doctor[]
+  doctors                Doctor[]
+  // FlowSteps this department OWNS, i.e. its own configured stage sequence
+  // (see FlowStep.ownerDepartment).
+  flowStepsAsOwner       FlowStep[]    @relation("FlowOwner")
+  // FlowSteps where this department is an intermediate HANDLER for some
+  // other department's sequence (see FlowStep.stageDepartment).
+  flowStepsAsStage       FlowStep[]    @relation("FlowStage")
+  currentForAppointments Appointment[]
 
   @@unique([clinicId, name])
 }
 
+// One ordered step in a medical department's patient flow, configured from
+// the admin "Flow" tab. Reception (before any FlowStep) and the assigned
+// doctor (after the last FlowStep) are implicit — never stored here. A
+// department with zero FlowStep rows keeps the original Reception -> Doctor
+// behavior untouched.
+model FlowStep {
+  id                String     @id @default(cuid())
+  clinicId          String
+  clinic            Clinic     @relation(fields: [clinicId], references: [id])
+  ownerDepartmentId String
+  ownerDepartment   Department @relation("FlowOwner", fields: [ownerDepartmentId], references: [id])
+  order             Int
+  stageDepartmentId String
+  stageDepartment   Department @relation("FlowStage", fields: [stageDepartmentId], references: [id])
+  createdAt         DateTime   @default(now())
+
+  @@unique([ownerDepartmentId, order])
+  @@index([clinicId])
+  @@index([stageDepartmentId])
+}
+
 model Doctor {
-  id           String     @id @default(cuid())
-  clinicId     String
-  clinic       Clinic     @relation(fields: [clinicId], references: [id])
-  departmentId String
-  department   Department @relation(fields: [departmentId], references: [id])
-  name         String
-  active       Boolean    @default(true)
-  photoUrl     String?    @db.Text // profile photo, stored as a data URL (see PhotoUploadField) — no external storage configured yet
+  id                String     @id @default(cuid())
+  clinicId          String
+  clinic            Clinic     @relation(fields: [clinicId], references: [id])
+  departmentId      String
+  department        Department @relation(fields: [departmentId], references: [id])
+  name              String
+  active            Boolean    @default(true)
+  photoUrl          String?    @db.Text // profile photo, stored as a data URL (see PhotoUploadField) — no external storage configured yet
   // Live "at her desk" status shown to front desk — isAvailable is the
   // explicit on/off switch (set true at login, false at logout, or flipped
   // manually for a break); lastSeenAt is a heartbeat touched on every doctor
   // dashboard render (piggybacking the existing ~5s AutoRefresh poll) so a
   // browser tab closed without a clean logout goes stale on its own instead
   // of relying on unreliable unload-event detection.
-  isAvailable  Boolean    @default(false)
-  lastSeenAt   DateTime?
+  isAvailable       Boolean    @default(false)
+  lastSeenAt        DateTime?
   // Consultation fee charged for appointments with this doctor
-  consultationFee Decimal  @default(0) @db.Decimal(10, 2)
+  consultationFee   Decimal    @default(0) @db.Decimal(10, 2)
   // Optional professional details
-  qualifications String?  // e.g., "MBBS, MD Medicine, Fellowship"
-  bio            String?  // Professional biography
-  specialization String?  // Medical specialization
-  licenseNumber  String?  // Medical license number
-  yearsOfExperience Int?  // Years in practice
-  createdAt    DateTime   @default(now())
+  qualifications    String? // e.g., "MBBS, MD Medicine, Fellowship"
+  bio               String? // Professional biography
+  specialization    String? // Medical specialization
+  licenseNumber     String? // Medical license number
+  yearsOfExperience Int? // Years in practice
+  createdAt         DateTime   @default(now())
 
   workingHours  WorkingHours[]
   slots         Slot[]
@@ -268,13 +309,13 @@ model Doctor {
 
 // Recurring weekly template used to materialize Slot rows for a rolling window.
 model WorkingHours {
-  id                 String @id @default(cuid())
-  doctorId           String
-  doctor             Doctor @relation(fields: [doctorId], references: [id])
-  dayOfWeek          Int    // 0=Sun..6=Sat
-  startTime          String // "09:00"
-  endTime            String // "17:00"
-  slotDurationMinutes Int   @default(20)
+  id                  String @id @default(cuid())
+  doctorId            String
+  doctor              Doctor @relation(fields: [doctorId], references: [id])
+  dayOfWeek           Int // 0=Sun..6=Sat
+  startTime           String // "09:00"
+  endTime             String // "17:00"
+  slotDurationMinutes Int    @default(20)
 
   @@index([doctorId])
 }
@@ -283,12 +324,12 @@ model WorkingHours {
 // Unique constraint is the concurrency guard: two patients can never
 // be assigned the same doctor+time.
 model Slot {
-  id        String     @id @default(cuid())
-  doctorId  String
-  doctor    Doctor     @relation(fields: [doctorId], references: [id])
-  startsAt  DateTime
-  endsAt    DateTime
-  status    SlotStatus @default(OPEN)
+  id       String     @id @default(cuid())
+  doctorId String
+  doctor   Doctor     @relation(fields: [doctorId], references: [id])
+  startsAt DateTime
+  endsAt   DateTime
+  status   SlotStatus @default(OPEN)
 
   // Not a 1:1 back-relation: a slot can accumulate multiple CANCELLED/NO_SHOW
   // appointment rows over time (see Appointment.slotId's partial unique
@@ -301,20 +342,20 @@ model Slot {
 }
 
 model Patient {
-  id        String   @id @default(cuid())
-  clinicId  String
-  clinic    Clinic   @relation(fields: [clinicId], references: [id])
-  phone     String   // E.164, e.g. +9665XXXXXXXX
-  name      String?
-  email     String?  // optional — set when a receptionist registers a walk-in with an email
-  locale    Locale   @default(AR)
+  id           String   @id @default(cuid())
+  clinicId     String
+  clinic       Clinic   @relation(fields: [clinicId], references: [id])
+  phone        String // E.164, e.g. +9665XXXXXXXX
+  name         String?
+  email        String? // optional — set when a receptionist registers a walk-in with an email
+  locale       Locale   @default(AR)
   // Doctor enters current age; we store the resulting birth year instead of
   // the raw age so it's always re-derived correctly on later visits without
   // anyone having to update it.
-  birthYear     Int?
-  gender        Gender?
-  medicalNotes  String? // allergies, chronic conditions, anything clinically relevant
-  createdAt DateTime @default(now())
+  birthYear    Int?
+  gender       Gender?
+  medicalNotes String? // allergies, chronic conditions, anything clinically relevant
+  createdAt    DateTime @default(now())
 
   appointments  Appointment[]
   conversations Conversation[]
@@ -325,28 +366,32 @@ model Patient {
 }
 
 model Appointment {
-  id             String            @id @default(cuid())
-  clinicId       String
-  clinic         Clinic            @relation(fields: [clinicId], references: [id])
-  doctorId       String
-  doctor         Doctor            @relation(fields: [doctorId], references: [id])
-  patientId      String
-  patient        Patient           @relation(fields: [patientId], references: [id])
+  id                  String            @id @default(cuid())
+  clinicId            String
+  clinic              Clinic            @relation(fields: [clinicId], references: [id])
+  doctorId            String
+  doctor              Doctor            @relation(fields: [doctorId], references: [id])
+  patientId           String
+  patient             Patient           @relation(fields: [patientId], references: [id])
   // Not @unique in Prisma — a cancelled appointment keeps its slotId forever
   // (history), so the same slot can accumulate several CANCELLED/NO_SHOW
   // rows. "At most one active appointment per slot" is instead enforced by
   // a partial unique index (see migration) that only covers non-terminal
   // statuses, so a freed slot can be rebooked without hitting a phantom
   // uniqueness conflict from its own cancelled history.
-  slotId         String
-  slot           Slot              @relation(fields: [slotId], references: [id])
-  status         AppointmentStatus @default(CONFIRMED)
-  reason         String?           // free-text, logistics only (e.g. "follow-up") — never clinical advice
-  bookedByStaff  Boolean           @default(false) // true for receptionist walk-ins, false for WhatsApp bookings
-  checkedInAt    DateTime?
-  startedAt      DateTime?
-  reminderSentAt DateTime?
-  createdAt      DateTime          @default(now())
+  slotId              String
+  slot                Slot              @relation(fields: [slotId], references: [id])
+  status              AppointmentStatus @default(CONFIRMED)
+  reason              String? // free-text, logistics only (e.g. "follow-up") — never clinical advice
+  bookedByStaff       Boolean           @default(false) // true for receptionist walk-ins, false for WhatsApp bookings
+  checkedInAt         DateTime?
+  startedAt           DateTime?
+  reminderSentAt      DateTime?
+  createdAt           DateTime          @default(now())
+  // Set while status = AT_STAGE: which department's shared queue this
+  // appointment currently sits in (see FlowStep). Null otherwise.
+  currentDepartmentId String?
+  currentDepartment   Department?       @relation(fields: [currentDepartmentId], references: [id])
 
   consultation Consultation?
   charges      AppointmentCharge[]
@@ -354,6 +399,7 @@ model Appointment {
 
   @@index([clinicId, status])
   @@index([slotId])
+  @@index([currentDepartmentId])
 }
 
 // Money actually collected against an appointment (consultation fee plus
@@ -369,9 +415,9 @@ model Payment {
   method        PaymentMethod
   status        PaymentStatus @default(PAID)
   provider      PosProvider   @default(MANUAL) // which terminal API took this payment (MANUAL = keyed in by staff)
-  providerTxnId String?       // the acquirer's transaction id, used to poll status while PENDING
-  failureReason String?       // human-readable decline/timeout reason when status = FAILED
-  reference     String?       // POS approval code / receipt number from the terminal
+  providerTxnId String? // the acquirer's transaction id, used to poll status while PENDING
+  failureReason String? // human-readable decline/timeout reason when status = FAILED
+  reference     String? // POS approval code / receipt number from the terminal
   recordedById  String?
   recordedBy    User?         @relation(fields: [recordedById], references: [id])
   createdAt     DateTime      @default(now())
@@ -386,7 +432,7 @@ model AppointmentCharge {
   id            String         @id @default(cuid())
   appointmentId String
   appointment   Appointment    @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
-  description   String         // e.g., "Blood test", "Ultrasound"
+  description   String // e.g., "Blood test", "Ultrasound"
   amount        Decimal        @db.Decimal(10, 2)
   category      ChargeCategory
   createdAt     DateTime       @default(now())
@@ -398,24 +444,24 @@ model AppointmentCharge {
 // data — a step beyond the "logistics only" scope everything else here
 // keeps to. Only reachable through the doctor's own scoped queries.
 model Consultation {
-  id            String      @id @default(cuid())
-  appointmentId String      @unique
-  appointment   Appointment @relation(fields: [appointmentId], references: [id])
-  doctorId      String
-  doctor        Doctor      @relation(fields: [doctorId], references: [id])
-  patientId     String
-  patient       Patient     @relation(fields: [patientId], references: [id])
-  notes         String?
-  prescription  String?
-  weightKg      Float? // vital recorded at this visit, tracked over time on the patient's history page
-  administeredTreatment String? // meds/injections given on the spot by nurse or doctor — distinct from `prescription` (take-home)
+  id                     String      @id @default(cuid())
+  appointmentId          String      @unique
+  appointment            Appointment @relation(fields: [appointmentId], references: [id])
+  doctorId               String
+  doctor                 Doctor      @relation(fields: [doctorId], references: [id])
+  patientId              String
+  patient                Patient     @relation(fields: [patientId], references: [id])
+  notes                  String?
+  prescription           String?
+  weightKg               Float? // vital recorded at this visit, tracked over time on the patient's history page
+  administeredTreatment  String? // meds/injections given on the spot by nurse or doctor — distinct from `prescription` (take-home)
   // When the doctor recommends "come back in N days" — we store the resulting
   // date (not the raw N) since that's what a reminder job would query
   // against. followUpReminderSentAt mirrors Appointment.reminderSentAt's
   // "don't remind twice" convention for a future WhatsApp reminder agent.
   followUpDate           DateTime?
   followUpReminderSentAt DateTime?
-  createdAt     DateTime    @default(now())
+  createdAt              DateTime    @default(now())
 
   @@index([patientId])
   @@index([doctorId])
@@ -463,7 +509,7 @@ model StaffEscalation {
   id           String           @id @default(cuid())
   clinicId     String
   clinic       Clinic           @relation(fields: [clinicId], references: [id])
-  patientPhone String           // E.164; patient name resolved at display time via Patient lookup
+  patientPhone String // E.164; patient name resolved at display time via Patient lookup
   reason       String
   urgent       Boolean          @default(false) // true = medical emergency flagged by the AI
   status       EscalationStatus @default(OPEN)

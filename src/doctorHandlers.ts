@@ -34,6 +34,75 @@ export async function listMyQueue(clinicId: string, doctorId: string, timeZone: 
   });
 }
 
+/** Resolves the logged-in staff member's own department id, needed to check isFlowStageDepartment/listStageQueue without a second doctor lookup. */
+export async function getMyDepartmentId(clinicId: string, doctorId: string): Promise<string> {
+  const doctor = await prisma.doctor.findFirstOrThrow({ where: { id: doctorId, clinicId }, select: { departmentId: true } });
+  return doctor.departmentId;
+}
+
+/** Whether this department is used as an intermediate stage in any department's configured flow — decides whether the doctor dashboard renders a Stage Queue section at all. */
+export async function isFlowStageDepartment(clinicId: string, departmentId: string): Promise<boolean> {
+  const step = await prisma.flowStep.findFirst({ where: { clinicId, stageDepartmentId: departmentId } });
+  return step !== null;
+}
+
+/**
+ * Shared queue for a department acting as an intermediate flow stage (e.g.
+ * "Nurse") — unlike listMyQueue, this is NOT scoped to one doctorId: any
+ * staff member in the department can see and pick up any patient currently
+ * sitting at this stage, across appointments destined for different doctors.
+ */
+export async function listStageQueue(clinicId: string, stageDepartmentId: string, timeZone: string) {
+  return prisma.appointment.findMany({
+    where: {
+      clinicId,
+      currentDepartmentId: stageDepartmentId,
+      status: "AT_STAGE",
+      slot: { startsAt: { gte: startOfToday(timeZone), lt: startOfTomorrow(timeZone) } },
+    },
+    include: { patient: true, slot: true, doctor: true },
+    orderBy: { slot: { startsAt: "asc" } },
+  });
+}
+
+/**
+ * Advances an AT_STAGE appointment to the next configured FlowStep, or — if
+ * it was the last one — hands it off to CHECKED_IN, where it appears in the
+ * assigned doctor's own listMyQueue completely unchanged. `staffDoctorId`
+ * must belong to the same department as the appointment's current stage
+ * (only staff actually working that stage can advance it, not any doctor
+ * in the clinic).
+ */
+export async function advanceAppointmentStage(clinicId: string, staffDoctorId: string, appointmentId: string) {
+  const [staff, appointment] = await Promise.all([
+    prisma.doctor.findFirst({ where: { id: staffDoctorId, clinicId }, select: { departmentId: true } }),
+    prisma.appointment.findFirst({
+      where: { id: appointmentId, clinicId, status: "AT_STAGE" },
+      include: { doctor: { select: { departmentId: true } } },
+    }),
+  ]);
+  if (!staff || !appointment) {
+    throw new Error("Appointment not found, or not currently at a stage");
+  }
+  if (staff.departmentId !== appointment.currentDepartmentId) {
+    throw new Error("This appointment isn't at your department's stage");
+  }
+
+  const steps = await prisma.flowStep.findMany({
+    where: { clinicId, ownerDepartmentId: appointment.doctor.departmentId },
+    orderBy: { order: "asc" },
+  });
+  const currentIndex = steps.findIndex((s) => s.stageDepartmentId === appointment.currentDepartmentId);
+  const nextStep = steps[currentIndex + 1];
+
+  await prisma.appointment.update({
+    where: { id: appointmentId },
+    data: nextStep
+      ? { currentDepartmentId: nextStep.stageDepartmentId }
+      : { status: "CHECKED_IN", currentDepartmentId: null },
+  });
+}
+
 export async function countCompletedToday(clinicId: string, doctorId: string, timeZone: string) {
   return prisma.appointment.count({
     where: {

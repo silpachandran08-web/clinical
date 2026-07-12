@@ -47,7 +47,7 @@ export async function listActiveDoctorsAction() {
 
   const { listDoctors } = await import("@/src/adminHandlers");
   const doctors = await listDoctors(session.clinicId);
-  return doctors.filter((d) => d.active);
+  return doctors.filter((d) => d.active && d.department.isBookable);
 }
 
 export async function resolveEscalationAction(formData: FormData) {

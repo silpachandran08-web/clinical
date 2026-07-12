@@ -245,6 +245,9 @@ export function QueueTab({ appointments, timeZone }: QueueTabProps) {
                               >
                                 {a.bookedByStaff ? "Walk-in" : "Online"}
                               </span>
+                              {a.status === "AT_STAGE" && a.currentDepartment && (
+                                <span className="badge">At: {a.currentDepartment.name}</span>
+                              )}
                               {a.status === "CONFIRMED" && (
                                 <form action={checkInAction} style={{ margin: 0 }}>
                                   <input type="hidden" name="appointmentId" value={a.id} />

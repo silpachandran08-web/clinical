@@ -9,14 +9,22 @@ import {
   formatMonthParam,
   getDayParam,
   getMonthStart,
+  getMyDepartmentId,
+  isFlowStageDepartment,
   listAppointmentDayCounts,
   listDayAppointments,
   listMyQueue,
+  listStageQueue,
   searchMyPatients,
   shiftMonthParam,
 } from "@/src/doctorHandlers";
 import { startOfDayInTimezone } from "@/src/scheduling/timezone";
-import { completeConsultationAction, startConsultationAction, startNextConsultationAction } from "@/lib/actions/doctor";
+import {
+  advanceStageAction,
+  completeConsultationAction,
+  startConsultationAction,
+  startNextConsultationAction,
+} from "@/lib/actions/doctor";
 import { PrescriptionBuilder } from "./PrescriptionBuilder";
 import { AdministeredTreatmentBuilder } from "./AdministeredTreatmentBuilder";
 import { MonthCalendar } from "./MonthCalendar";
@@ -49,7 +57,10 @@ export default async function DoctorQueuePage({
   const selectedDay = params.day ? getDayParam(params.day, clinic.timezone) : null;
   const isPastDay = selectedDay ? selectedDay.getTime() < startOfDayInTimezone(new Date(), clinic.timezone).getTime() : false;
 
-  const [queue, completedToday, searchResults, dayCounts, dayAppointments] = await Promise.all([
+  const myDepartmentId = await getMyDepartmentId(session.clinicId, session.doctorId);
+  const isStageDept = await isFlowStageDepartment(session.clinicId, myDepartmentId);
+
+  const [queue, completedToday, searchResults, dayCounts, dayAppointments, stageQueue] = await Promise.all([
     listMyQueue(session.clinicId, session.doctorId, clinic.timezone),
     countCompletedToday(session.clinicId, session.doctorId, clinic.timezone),
     q ? searchMyPatients(session.clinicId, session.doctorId, q) : Promise.resolve([]),
@@ -57,6 +68,7 @@ export default async function DoctorQueuePage({
     selectedDay
       ? listDayAppointments(session.clinicId, session.doctorId, selectedDay, clinic.timezone)
       : Promise.resolve([]),
+    isStageDept ? listStageQueue(session.clinicId, myDepartmentId, clinic.timezone) : Promise.resolve([]),
   ]);
 
   const waiting = queue.filter((a) => a.status === "CHECKED_IN");
@@ -218,6 +230,54 @@ export default async function DoctorQueuePage({
               </table>
             )}
           </div>
+
+          {isStageDept && (
+            <div className="card">
+              <h2 className="card-title-icon" style={{ marginBottom: 2 }}>
+                <StethoscopeIcon /> Stage queue
+              </h2>
+              <p className="muted" style={{ marginTop: 0, marginBottom: 14, fontSize: 12.5 }}>
+                Shared — any staff in your department can pick these up.
+              </p>
+              {stageQueue.length === 0 ? (
+                <p className="empty-state">No one waiting at this stage.</p>
+              ) : (
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Time</th>
+                      <th>Patient</th>
+                      <th>For doctor</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {stageQueue.map((a) => (
+                      <tr key={a.id}>
+                        <td>
+                          {a.slot.startsAt.toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            timeZone: clinic.timezone,
+                          })}
+                        </td>
+                        <td>{a.patient.name ?? a.patient.phone}</td>
+                        <td>{a.doctor.name}</td>
+                        <td>
+                          <form action={advanceStageAction}>
+                            <input type="hidden" name="appointmentId" value={a.id} />
+                            <button type="submit" className="secondary">
+                              Send to next stage →
+                            </button>
+                          </form>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
 
           {selectedDay && (
             <div className="card">
