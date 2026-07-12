@@ -3,6 +3,7 @@ import Link from "next/link";
 import { listDepartments, listDoctors } from "@/src/adminHandlers";
 import { editDoctorAction } from "@/lib/actions/doctors";
 import { getSession } from "@/lib/session";
+import { PhotoUploadField } from "@/app/admin/PhotoUploadField";
 
 const DAYS = [
   { value: 0, label: "Sun" },
@@ -43,6 +44,7 @@ export default async function EditDoctorPage({
       <div className="card">
         <form action={editDoctorAction} className="stack" style={{ maxWidth: 480 }}>
           <input type="hidden" name="doctorId" value={doctor.id} />
+          <PhotoUploadField name="photoUrl" defaultValue={doctor.photoUrl} />
           <label>
             Name
             <input name="name" defaultValue={doctor.name} required />

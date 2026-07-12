@@ -4,6 +4,7 @@ import { setDoctorAvailabilityAction } from "@/lib/actions/doctor";
 import { touchDoctorLastSeen } from "@/src/doctorHandlers";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/src/db/client";
+import { AvatarThumb } from "@/app/AvatarThumb";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +21,10 @@ export default async function DoctorLayout({ children }: { children: React.React
   return (
     <>
       <nav className="nav">
-        <span style={{ padding: "14px 12px", color: "var(--text)" }}>{doctor?.name ?? "Doctor"}</span>
+        <span style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", color: "var(--text)" }}>
+          <AvatarThumb src={doctor?.photoUrl} name={doctor?.name ?? "Doctor"} size={28} />
+          {doctor?.name ?? "Doctor"}
+        </span>
         <div className="nav-spacer" />
         <form action={setDoctorAvailabilityAction} style={{ display: "flex", alignItems: "center", marginRight: 10 }}>
           <input type="hidden" name="available" value={doctor?.isAvailable ? "false" : "true"} />

@@ -3,6 +3,8 @@ import Link from "next/link";
 import { listDoctors, listStaff } from "@/src/adminHandlers";
 import { inviteStaffAction, removeStaffAction } from "@/lib/actions/staff";
 import { getSession } from "@/lib/session";
+import { AvatarThumb } from "@/app/AvatarThumb";
+import { PhotoUploadField } from "@/app/admin/PhotoUploadField";
 
 export default async function StaffPage({
   searchParams,
@@ -26,6 +28,7 @@ export default async function StaffPage({
           No password to set — they sign in with this email at <code>/login</code> using a one-time code.
         </p>
         <form action={inviteStaffAction} className="stack">
+          <PhotoUploadField name="photoUrl" />
           <label>
             Email
             <input type="email" name="email" required />
@@ -61,6 +64,7 @@ export default async function StaffPage({
           <table>
             <thead>
               <tr>
+                <th></th>
                 <th>Email</th>
                 <th>Role</th>
                 <th>Linked doctor</th>
@@ -70,6 +74,9 @@ export default async function StaffPage({
             <tbody>
               {staff.map((u) => (
                 <tr key={u.id}>
+                  <td>
+                    <AvatarThumb src={u.photoUrl} name={u.name || u.email} size={32} />
+                  </td>
                   <td>{u.email}</td>
                   <td>{u.role}</td>
                   <td>{u.doctor?.name ?? "—"}</td>

@@ -20,6 +20,7 @@ export async function inviteStaffAction(formData: FormData) {
     email: String(formData.get("email") ?? ""),
     role,
     doctorId: role === "DOCTOR" ? String(formData.get("doctorId") ?? "") || undefined : undefined,
+    photoUrl: String(formData.get("photoUrl") ?? "").trim() || undefined,
   });
 
   await inviteStaff(session.clinicId, payload);
@@ -35,6 +36,9 @@ export async function editStaffAction(formData: FormData) {
   const payload = updateStaffSchema.parse({
     role,
     doctorId: role === "DOCTOR" ? String(formData.get("doctorId") ?? "") || undefined : undefined,
+    // Always present (PhotoUploadField renders the hidden input unconditionally) —
+    // an empty string here means "remove the photo", not "leave unchanged".
+    photoUrl: String(formData.get("photoUrl") ?? ""),
   });
 
   try {

@@ -33,6 +33,7 @@ export async function addDoctorAction(formData: FormData) {
     specialization: String(formData.get("specialization") ?? "").trim() || undefined,
     licenseNumber: String(formData.get("licenseNumber") ?? "").trim() || undefined,
     yearsOfExperience: formData.get("yearsOfExperience") ? Number(formData.get("yearsOfExperience")) : undefined,
+    photoUrl: String(formData.get("photoUrl") ?? "").trim() || undefined,
     workingHours: parseWorkingHoursFromForm(formData),
   });
 
@@ -65,6 +66,9 @@ export async function editDoctorAction(formData: FormData) {
     specialization: String(formData.get("specialization") ?? "").trim() || undefined,
     licenseNumber: String(formData.get("licenseNumber") ?? "").trim() || undefined,
     yearsOfExperience: formData.get("yearsOfExperience") ? Number(formData.get("yearsOfExperience")) : undefined,
+    // Always present (PhotoUploadField renders the hidden input unconditionally) —
+    // an empty string here means "remove the photo", not "leave unchanged".
+    photoUrl: String(formData.get("photoUrl") ?? ""),
     workingHours: parseWorkingHoursFromForm(formData),
   });
 

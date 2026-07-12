@@ -3,6 +3,7 @@ import Link from "next/link";
 import { listDoctors, listStaff } from "@/src/adminHandlers";
 import { editStaffAction } from "@/lib/actions/staff";
 import { getSession } from "@/lib/session";
+import { PhotoUploadField } from "@/app/admin/PhotoUploadField";
 
 export default async function EditStaffPage({
   params,
@@ -29,6 +30,7 @@ export default async function EditStaffPage({
       <div className="card">
         <form action={editStaffAction} className="stack">
           <input type="hidden" name="userId" value={member.id} />
+          <PhotoUploadField name="photoUrl" defaultValue={member.photoUrl} />
           <label>
             Role
             <select name="role" defaultValue={member.role} required>

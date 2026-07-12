@@ -56,6 +56,11 @@ const workingHoursSchema = z.object({
   slotDurationMinutes: z.number().optional(),
 });
 
+// Data-URL photo, capped well above what PhotoUploadField's 256px/q0.85 JPEG
+// produces (tens of KB) — the cap only exists to reject a client that bypassed
+// the browser resize, not a limit anyone should normally hit.
+const photoUrlSchema = z.string().max(2_000_000).optional();
+
 export const createDoctorSchema = z.object({
   departmentId: z.string(),
   name: z.string().min(1),
@@ -65,6 +70,7 @@ export const createDoctorSchema = z.object({
   specialization: z.string().max(200).optional(),
   licenseNumber: z.string().max(100).optional(),
   yearsOfExperience: z.number().int().min(0).max(60).optional(),
+  photoUrl: photoUrlSchema,
   workingHours: z.array(workingHoursSchema).default([]),
 });
 
@@ -72,6 +78,7 @@ export const inviteStaffSchema = z.object({
   email: z.string().email(),
   role: z.enum(["RECEPTIONIST", "DOCTOR"]),
   doctorId: z.string().optional(),
+  photoUrl: photoUrlSchema,
 });
 
 export async function getClinic(clinicId: string) {
@@ -147,6 +154,7 @@ export async function createDoctor(clinicId: string, input: z.infer<typeof creat
       specialization: input.specialization,
       licenseNumber: input.licenseNumber,
       yearsOfExperience: input.yearsOfExperience,
+      photoUrl: input.photoUrl || null,
       workingHours: {
         create: input.workingHours.map((wh) => ({
           dayOfWeek: wh.dayOfWeek,
@@ -198,6 +206,7 @@ export async function updateDoctor(
   if (input.specialization !== undefined) updateData.specialization = input.specialization;
   if (input.licenseNumber !== undefined) updateData.licenseNumber = input.licenseNumber;
   if (input.yearsOfExperience !== undefined) updateData.yearsOfExperience = input.yearsOfExperience;
+  if (input.photoUrl !== undefined) updateData.photoUrl = input.photoUrl || null;
 
   const transactions: any[] = [
     prisma.doctor.update({
@@ -287,6 +296,7 @@ export async function inviteStaff(clinicId: string, input: z.infer<typeof invite
       email: input.email.trim().toLowerCase(),
       role: input.role,
       doctorId: input.role === "DOCTOR" ? input.doctorId : undefined,
+      photoUrl: input.photoUrl || null,
     },
   });
 }
@@ -294,6 +304,7 @@ export async function inviteStaff(clinicId: string, input: z.infer<typeof invite
 export const updateStaffSchema = z.object({
   role: z.enum(["RECEPTIONIST", "DOCTOR"]),
   doctorId: z.string().optional(),
+  photoUrl: photoUrlSchema,
 });
 
 export async function updateStaff(clinicId: string, userId: string, input: z.infer<typeof updateStaffSchema>) {
@@ -306,7 +317,11 @@ export async function updateStaff(clinicId: string, userId: string, input: z.inf
 
   await prisma.user.update({
     where: { id: userId },
-    data: { role: input.role, doctorId: input.role === "DOCTOR" ? input.doctorId : null },
+    data: {
+      role: input.role,
+      doctorId: input.role === "DOCTOR" ? input.doctorId : null,
+      ...(input.photoUrl !== undefined ? { photoUrl: input.photoUrl || null } : {}),
+    },
   });
 }
 

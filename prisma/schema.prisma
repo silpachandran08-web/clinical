@@ -195,6 +195,7 @@ model User {
   clinic    Clinic   @relation(fields: [clinicId], references: [id])
   doctorId  String?  @unique // set only when role = DOCTOR, links to their Doctor row
   doctor    Doctor?  @relation(fields: [doctorId], references: [id])
+  photoUrl  String?  @db.Text // profile photo, stored as a data URL (see PhotoUploadField) — no external storage configured yet
   createdAt DateTime @default(now())
 
   paymentsRecorded Payment[]
@@ -236,6 +237,7 @@ model Doctor {
   department   Department @relation(fields: [departmentId], references: [id])
   name         String
   active       Boolean    @default(true)
+  photoUrl     String?    @db.Text // profile photo, stored as a data URL (see PhotoUploadField) — no external storage configured yet
   // Live "at her desk" status shown to front desk — isAvailable is the
   // explicit on/off switch (set true at login, false at logout, or flipped
   // manually for a break); lastSeenAt is a heartbeat touched on every doctor

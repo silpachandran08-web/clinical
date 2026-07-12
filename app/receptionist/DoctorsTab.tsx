@@ -4,11 +4,13 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Clinic } from "@prisma/client";
 import { ChevronLeftIcon, ChevronRightIcon, StethoscopeIcon } from "../DashboardIcons";
+import { AvatarThumb } from "../AvatarThumb";
 import type { WeekDay } from "@/src/receptionistHandlers";
 
 interface DoctorWithWeeks {
   id: string;
   name: string;
+  photoUrl: string | null;
   department: { name: string };
   isLive: boolean;
   weeksData: Array<{
@@ -163,6 +165,7 @@ export function DoctorsTab({ clinic, doctors, now }: DoctorsTabProps) {
                 onClick={() => setExpandedDoctor(isExpanded ? null : doctor.id)}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <AvatarThumb src={doctor.photoUrl} name={doctor.name} size={32} />
                   <div
                     style={{
                       width: 8,

@@ -90,6 +90,7 @@ export default async function ReceptionistPage({
   let doctorsWithWeeks: Array<{
     id: string;
     name: string;
+    photoUrl: string | null;
     department: (typeof allDoctors)[number]["department"];
     isLive: boolean;
     weeksData: Array<{ weekStart: Date; weekLabel: string; days: Awaited<ReturnType<typeof listWeekSlots>> }>;
@@ -105,6 +106,7 @@ export default async function ReceptionistPage({
     doctorsWithWeeks = activeDoctors.map((doc) => ({
       id: doc.id,
       name: doc.name,
+      photoUrl: doc.photoUrl,
       department: doc.department,
       isLive: todayDoctorStatus.find((d) => d.id === doc.id)?.isLive ?? false,
       weeksData: (weeksByDoctor.get(doc.id) ?? []).map((days, i) => {

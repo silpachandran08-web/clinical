@@ -10,6 +10,7 @@ import {
   PatientIcon,
   StethoscopeIcon,
 } from "../DashboardIcons";
+import { AvatarThumb } from "../AvatarThumb";
 
 interface QueueTabProps {
   appointments: Array<any>;
@@ -205,14 +206,18 @@ export function QueueTab({ appointments, timeZone }: QueueTabProps) {
                                   </div>
                                   <div
                                     style={{
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: 5,
                                       fontSize: 11.5,
                                       color: "var(--text-muted)",
                                       overflow: "hidden",
-                                      textOverflow: "ellipsis",
-                                      whiteSpace: "nowrap",
                                     }}
                                   >
-                                    {a.doctor.name}
+                                    <AvatarThumb src={a.doctor.photoUrl} name={a.doctor.name} size={16} />
+                                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                      {a.doctor.name}
+                                    </span>
                                   </div>
                                 </div>
                               </div>

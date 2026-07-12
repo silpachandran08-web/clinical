@@ -3,6 +3,8 @@ import Link from "next/link";
 import { listDepartments, listDoctors } from "@/src/adminHandlers";
 import { addDoctorAction, deleteDoctorAction, toggleDoctorActiveAction } from "@/lib/actions/doctors";
 import { getSession } from "@/lib/session";
+import { AvatarThumb } from "@/app/AvatarThumb";
+import { PhotoUploadField } from "@/app/admin/PhotoUploadField";
 
 const DAYS = [
   { value: 0, label: "Sun" },
@@ -47,6 +49,7 @@ export default async function DoctorsPage({
       <div className="card">
         <h2>Add a doctor</h2>
         <form action={addDoctorAction} className="stack" style={{ maxWidth: 480 }}>
+          <PhotoUploadField name="photoUrl" />
           <label>
             Name
             <input name="name" placeholder="Dr. Fatima Al-Harbi" required />
@@ -111,6 +114,7 @@ export default async function DoctorsPage({
           <table>
             <thead>
               <tr>
+                <th></th>
                 <th>Name</th>
                 <th>Department</th>
                 <th>Specialization</th>
@@ -124,6 +128,9 @@ export default async function DoctorsPage({
             <tbody>
               {doctors.map((doc) => (
                 <tr key={doc.id}>
+                  <td>
+                    <AvatarThumb src={doc.photoUrl} name={doc.name} size={32} />
+                  </td>
                   <td>{doc.name}</td>
                   <td>{doc.department.name}</td>
                   <td>{doc.specialization || "—"}</td>
