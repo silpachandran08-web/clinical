@@ -62,6 +62,11 @@ export default async function FlowPage({
       <div className="card">
         <h2>{selectedDept.name}&apos;s flow</h2>
         <FlowEditor
+          // Re-key on the selected dept so useState(initialStageIds) actually
+          // re-initializes when the picker switches between departments —
+          // otherwise the client component keeps the previous dept's state
+          // and looks "reverted" until a hard reload.
+          key={selectedDeptId}
           ownerDepartmentId={selectedDeptId}
           allDepartments={departments.map((d) => ({ id: d.id, name: d.name }))}
           initialStageIds={steps.map((s) => s.stageDepartmentId)}
