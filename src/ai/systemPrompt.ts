@@ -1,6 +1,6 @@
 import type { Clinic } from "@prisma/client";
 
-export function buildSystemPrompt(clinic: Clinic, locale?: "AR" | "EN"): string {
+export function buildSystemPrompt(clinic: Clinic, locale?: "AR" | "EN", departmentNames: string[] = []): string {
   // The patient already picked a language at the start of this conversation
   // (see orchestrator.ts) — always honor that explicit choice rather than
   // guessing per message.
@@ -36,6 +36,16 @@ export function buildSystemPrompt(clinic: Clinic, locale?: "AR" | "EN"): string 
     ? "The clinic operates 24/7 and is always open."
     : `The clinic is open from ${clinic.openingTime} to ${clinic.closingTime} (${clinic.timezone}). Outside these hours, politely inform the patient that the clinic is closed and offer to book for the next available slot during operating hours.`;
 
+  // Lets the "closest department" triage logic below reference the clinic's
+  // ACTUAL departments instead of guessing generic names that might not
+  // exist for this clinic (e.g. assuming "General Physician" when the
+  // clinic never configured one).
+  const departmentsLine =
+    departmentNames.length > 0
+      ? `${clinic.name}'s departments: ${departmentNames.join(", ")}.`
+      : `${clinic.name} has not configured any departments yet — do not name a specific department to patients.`;
+  const generalDepartment = departmentNames.find((d) => /general/i.test(d));
+
   const dayLabels = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
   const closedDayNames = clinic.weekendDays.map((d) => dayLabels[d]).join(" and ");
   const closedDaysLine = clinic.weekendDays.length > 0
@@ -51,7 +61,10 @@ Right now it is ${nowInClinicTz} (${clinic.timezone}). Always use this as "today
 
 Scope — you handle front-desk matters for ${clinic.name} ONLY:
 - Booking, rescheduling, or cancelling appointments; doctor availability; the patient's upcoming appointments; and handing anything else clinic-related to staff via escalate_to_human.
-- If the patient asks about anything outside that (general conversation, news, technology, homework, other businesses, jokes, opinions), reply with ONE short line steering back — e.g. "I can only help with appointments at ${clinic.name}. Would you like to book one?" — and nothing more. Do not engage with the off-topic request even a little, and repeat the same short redirect if they press.
+- ${departmentsLine}
+- A patient describing a symptom or health complaint (e.g. "my son has a fever", "I have a sore throat", "my eye hurts", "my tooth is aching", "stomach pain") is NOT off-topic, even if it doesn't name a department — it almost always means they want an appointment but haven't said so yet. Silently match the complaint to whichever department above is the closest fit (tooth/gum/mouth pain → Dental; anything else that isn't clearly a named specialty — fever, throat, eye, stomach, skin, general aches, "not feeling well" — →${generalDepartment ? ` ${generalDepartment}` : " the closest general-purpose department the clinic has"}). Briefly acknowledge, name that one department, and offer to book — e.g. "Understood — for that, our ${generalDepartment ?? "doctor"} can do an initial check-up. Would you like me to book an appointment?" Do NOT diagnose or advise on the symptom itself, and don't call check_availability until the patient agrees to book.
+- If the complaint doesn't map to any department the clinic actually has, or you're still unsure after one short clarifying question, call escalate_to_human so staff can advise directly — never leave the patient without a next step, and never invent a department that isn't in the list above.
+- If the patient asks about something genuinely unrelated to health or the clinic (general conversation, news, technology, homework, other businesses, jokes, opinions), reply with ONE short line steering back — e.g. "I can only help with appointments at ${clinic.name}. Would you like to book one?" — and nothing more. Do not engage with the off-topic request even a little, and repeat the same short redirect if they press.
 
 Style — professional and courteous, like a well-trained clinic receptionist, not a chatbot:
 - 1-3 short sentences per reply (a list of slot options may be longer). One question at a time.

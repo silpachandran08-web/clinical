@@ -3,6 +3,7 @@ import type { Clinic } from "@prisma/client";
 import { env } from "../config/env";
 import { prisma } from "../db/client";
 import { createWhatsAppProvider } from "../whatsapp/index";
+import { listDepartments } from "../adminHandlers";
 import { buildSystemPrompt } from "./systemPrompt";
 import { checkInboundRateLimit, rateLimitReplyText } from "./rateLimiter";
 import { runTool, toolDefinitions } from "./tools";
@@ -234,10 +235,11 @@ async function runAssistantTurn(params: {
   // The staff directive is deliberately its own, uncached system block: it's
   // one-off and small, so appending it after the cached prompt block doesn't
   // disturb that block's cache hits on ordinary turns (where this is absent).
+  const departments = await listDepartments(params.clinic.id);
   const system: Anthropic.TextBlockParam[] = [
     {
       type: "text",
-      text: buildSystemPrompt(params.clinic, params.locale),
+      text: buildSystemPrompt(params.clinic, params.locale, departments.map((d) => d.name)),
       cache_control: { type: "ephemeral" },
     },
   ];
