@@ -5,6 +5,7 @@ import { inviteStaffAction, removeStaffAction } from "@/lib/actions/staff";
 import { getSession } from "@/lib/session";
 import { AvatarThumb } from "@/app/AvatarThumb";
 import { PhotoUploadField } from "@/app/admin/PhotoUploadField";
+import { RoleAndStaffPicker } from "./RoleAndStaffPicker";
 
 export default async function StaffPage({
   searchParams,
@@ -20,7 +21,9 @@ export default async function StaffPage({
     listDoctors(session.clinicId),
     listDepartments(session.clinicId),
   ]);
-  const unlinkedDoctors = doctors.filter((d) => !d.user);
+  const unlinkedDoctors = doctors
+    .filter((d) => !d.user)
+    .map((d) => ({ id: d.id, name: d.name, departmentName: d.department.name, departmentKind: d.department.kind }));
   const hasLabDepartment = departments.some((d) => d.kind === "LAB");
 
   return (
@@ -38,26 +41,7 @@ export default async function StaffPage({
             Email
             <input type="email" name="email" required />
           </label>
-          <label>
-            Role
-            <select name="role" required defaultValue="RECEPTIONIST">
-              <option value="RECEPTIONIST">Receptionist</option>
-              <option value="DOCTOR">Doctor</option>
-              <option value="NURSE">Nurse</option>
-              {hasLabDepartment && <option value="LAB">Lab</option>}
-            </select>
-          </label>
-          <label>
-            If Doctor/Nurse/Lab — which staff record is this?
-            <select name="doctorId" defaultValue="">
-              <option value="">N/A (receptionist)</option>
-              {unlinkedDoctors.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          <RoleAndStaffPicker unlinkedDoctors={unlinkedDoctors} hasLabDepartment={hasLabDepartment} />
           <button type="submit">Send invite</button>
         </form>
       </div>
