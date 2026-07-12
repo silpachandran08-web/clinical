@@ -1,5 +1,6 @@
 "use server";
 
+import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { recordVitalsAndAdvance, recordVitalsSchema } from "@/src/nurseHandlers";
 import { getSession } from "@/lib/session";
@@ -30,4 +31,5 @@ export async function recordVitalsAndAdvanceAction(formData: FormData) {
   revalidatePath("/nurse");
   revalidatePath("/doctor");
   revalidatePath("/receptionist");
+  redirect("/nurse");
 }
