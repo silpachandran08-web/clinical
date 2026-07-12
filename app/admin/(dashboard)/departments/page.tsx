@@ -1,12 +1,18 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { listDepartments } from "@/src/adminHandlers";
-import { addDepartmentAction } from "@/lib/actions/departments";
+import { addDepartmentAction, deleteDepartmentAction } from "@/lib/actions/departments";
 import { getSession } from "@/lib/session";
 
-export default async function DepartmentsPage() {
+export default async function DepartmentsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
   const session = await getSession();
   if (!session) redirect("/login");
 
+  const params = await searchParams;
   const departments = await listDepartments(session.clinicId);
 
   return (
@@ -30,6 +36,7 @@ export default async function DepartmentsPage() {
 
       <div className="card">
         <h2>All departments</h2>
+        {params.error && <p className="error" style={{ marginBottom: 12 }}>{params.error}</p>}
         {departments.length === 0 ? (
           <p className="empty-state">No departments yet.</p>
         ) : (
@@ -39,6 +46,7 @@ export default async function DepartmentsPage() {
                 <th>Name</th>
                 <th>Bookable</th>
                 <th>Created</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -47,6 +55,21 @@ export default async function DepartmentsPage() {
                   <td>{d.name}</td>
                   <td>{d.isBookable ? "Yes" : "No"}</td>
                   <td>{d.createdAt.toLocaleDateString()}</td>
+                  <td>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <Link href={`/admin/departments/${d.id}/edit`}>
+                        <button type="button" className="secondary">
+                          Edit
+                        </button>
+                      </Link>
+                      <form action={deleteDepartmentAction}>
+                        <input type="hidden" name="departmentId" value={d.id} />
+                        <button type="submit" className="danger">
+                          Delete
+                        </button>
+                      </form>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>

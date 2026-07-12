@@ -135,6 +135,50 @@ export async function createDepartment(clinicId: string, input: z.infer<typeof c
   return prisma.department.create({ data: { clinicId, name: input.name, isBookable: input.isBookable } });
 }
 
+export const updateDepartmentSchema = z.object({
+  name: z.string().min(1),
+  isBookable: z.coerce.boolean(),
+});
+
+export async function updateDepartment(
+  clinicId: string,
+  departmentId: string,
+  input: z.infer<typeof updateDepartmentSchema>,
+) {
+  const department = await prisma.department.findFirst({ where: { id: departmentId, clinicId } });
+  if (!department) throw new Error("Department not found");
+
+  return prisma.department.update({
+    where: { id: departmentId },
+    data: { name: input.name, isBookable: input.isBookable },
+  });
+}
+
+/**
+ * Blocked while any doctor is still assigned (Doctor.departmentId is
+ * required, so deleting would either orphan them or fail the FK) or while
+ * the department is used in any configured Flow (as the owner or as a
+ * stage) — clear those first from Doctors/Flow.
+ */
+export async function deleteDepartment(clinicId: string, departmentId: string) {
+  const department = await prisma.department.findFirst({ where: { id: departmentId, clinicId } });
+  if (!department) throw new Error("Department not found");
+
+  const doctorCount = await prisma.doctor.count({ where: { departmentId } });
+  if (doctorCount > 0) {
+    throw new Error("This department has doctors assigned — move or remove them first.");
+  }
+
+  const flowStepCount = await prisma.flowStep.count({
+    where: { clinicId, OR: [{ ownerDepartmentId: departmentId }, { stageDepartmentId: departmentId }] },
+  });
+  if (flowStepCount > 0) {
+    throw new Error("This department is used in a configured flow — remove it from the Flow tab first.");
+  }
+
+  await prisma.department.delete({ where: { id: departmentId } });
+}
+
 export async function listFlowSteps(clinicId: string, ownerDepartmentId: string) {
   return prisma.flowStep.findMany({
     where: { clinicId, ownerDepartmentId },
