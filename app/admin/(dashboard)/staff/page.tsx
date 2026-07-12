@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { listDoctors, listStaff } from "@/src/adminHandlers";
+import { listDepartments, listDoctors, listStaff } from "@/src/adminHandlers";
 import { inviteStaffAction, removeStaffAction } from "@/lib/actions/staff";
 import { getSession } from "@/lib/session";
 import { AvatarThumb } from "@/app/AvatarThumb";
@@ -15,15 +15,20 @@ export default async function StaffPage({
   if (!session) redirect("/login");
 
   const params = await searchParams;
-  const [staff, doctors] = await Promise.all([listStaff(session.clinicId), listDoctors(session.clinicId)]);
+  const [staff, doctors, departments] = await Promise.all([
+    listStaff(session.clinicId),
+    listDoctors(session.clinicId),
+    listDepartments(session.clinicId),
+  ]);
   const unlinkedDoctors = doctors.filter((d) => !d.user);
+  const hasLabDepartment = departments.some((d) => d.kind === "LAB");
 
   return (
     <div>
       <h1>Staff</h1>
 
       <div className="card">
-        <h2>Invite a receptionist or doctor</h2>
+        <h2>Invite staff</h2>
         <p className="muted">
           No password to set — they sign in with this email at <code>/login</code> using a one-time code.
         </p>
@@ -38,10 +43,12 @@ export default async function StaffPage({
             <select name="role" required defaultValue="RECEPTIONIST">
               <option value="RECEPTIONIST">Receptionist</option>
               <option value="DOCTOR">Doctor</option>
+              <option value="NURSE">Nurse</option>
+              {hasLabDepartment && <option value="LAB">Lab</option>}
             </select>
           </label>
           <label>
-            If Doctor — which doctor record is this?
+            If Doctor/Nurse/Lab — which staff record is this?
             <select name="doctorId" defaultValue="">
               <option value="">N/A (receptionist)</option>
               {unlinkedDoctors.map((d) => (

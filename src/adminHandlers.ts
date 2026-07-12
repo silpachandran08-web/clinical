@@ -48,6 +48,7 @@ export const updateClinicSchema = z.object({
 export const createDepartmentSchema = z.object({
   name: z.string().min(1),
   isBookable: z.coerce.boolean().default(true),
+  kind: z.enum(["MEDICAL", "NURSE", "LAB"]).default("MEDICAL"),
 });
 
 const workingHoursSchema = z.object({
@@ -75,9 +76,32 @@ export const createDoctorSchema = z.object({
   workingHours: z.array(workingHoursSchema).default([]),
 });
 
+// Which department kind a login's linked Doctor (staff) row must belong to
+// for each role — catches a mismatched pick (e.g. a DOCTOR login linked to
+// a Nurse-department staff row) at invite/edit time instead of silently
+// breaking stage-queue matching later with no visible error.
+const STAFF_ROLE_TO_DEPARTMENT_KIND = {
+  DOCTOR: "MEDICAL",
+  NURSE: "NURSE",
+  LAB: "LAB",
+} as const;
+
+const STAFF_ROLES_REQUIRING_DOCTOR = Object.keys(STAFF_ROLE_TO_DEPARTMENT_KIND) as Array<
+  keyof typeof STAFF_ROLE_TO_DEPARTMENT_KIND
+>;
+
+async function assertDoctorMatchesRole(doctorId: string, role: keyof typeof STAFF_ROLE_TO_DEPARTMENT_KIND) {
+  const doctor = await prisma.doctor.findUnique({ where: { id: doctorId }, include: { department: true } });
+  if (!doctor) throw new Error("Staff record not found");
+  const expectedKind = STAFF_ROLE_TO_DEPARTMENT_KIND[role];
+  if (doctor.department.kind !== expectedKind) {
+    throw new Error(`That staff record's department isn't a ${expectedKind === "MEDICAL" ? "medical" : expectedKind.toLowerCase()} department`);
+  }
+}
+
 export const inviteStaffSchema = z.object({
   email: z.string().email(),
-  role: z.enum(["RECEPTIONIST", "DOCTOR"]),
+  role: z.enum(["RECEPTIONIST", "DOCTOR", "NURSE", "LAB"]),
   doctorId: z.string().optional(),
   photoUrl: photoUrlSchema,
 });
@@ -132,12 +156,15 @@ export async function listDepartments(clinicId: string) {
 }
 
 export async function createDepartment(clinicId: string, input: z.infer<typeof createDepartmentSchema>) {
-  return prisma.department.create({ data: { clinicId, name: input.name, isBookable: input.isBookable } });
+  return prisma.department.create({
+    data: { clinicId, name: input.name, isBookable: input.isBookable, kind: input.kind },
+  });
 }
 
 export const updateDepartmentSchema = z.object({
   name: z.string().min(1),
   isBookable: z.coerce.boolean(),
+  kind: z.enum(["MEDICAL", "NURSE", "LAB"]),
 });
 
 export async function updateDepartment(
@@ -150,7 +177,7 @@ export async function updateDepartment(
 
   return prisma.department.update({
     where: { id: departmentId },
-    data: { name: input.name, isBookable: input.isBookable },
+    data: { name: input.name, isBookable: input.isBookable, kind: input.kind },
   });
 }
 
@@ -207,6 +234,49 @@ export async function saveFlowSteps(clinicId: string, ownerDepartmentId: string,
       })),
     }),
   ]);
+}
+
+export async function listLabFieldDefinitions(clinicId: string, departmentId: string) {
+  return prisma.labFieldDefinition.findMany({
+    where: { clinicId, departmentId },
+    orderBy: { order: "asc" },
+  });
+}
+
+export const saveLabFieldDefinitionsSchema = z.array(
+  z.object({
+    label: z.string().min(1),
+    fieldType: z.enum(["TEXT", "NUMBER", "TEXTAREA", "ATTACHMENT"]),
+    required: z.coerce.boolean().default(false),
+  }),
+);
+
+/**
+ * Replaces a lab department's entire field set in one transaction — same
+ * replace-all pattern as saveFlowSteps. Removing a field that already has
+ * recorded LabResultValue rows fails (LabResultValue.fieldDefinition has no
+ * cascade) rather than silently deleting patient lab history; surface that
+ * as a clear error instead of a raw FK failure.
+ */
+export async function saveLabFieldDefinitions(
+  clinicId: string,
+  departmentId: string,
+  fields: z.infer<typeof saveLabFieldDefinitionsSchema>,
+) {
+  const department = await prisma.department.findFirst({ where: { id: departmentId, clinicId } });
+  if (!department) throw new Error("Department not found");
+  if (department.kind !== "LAB") throw new Error("Only Lab-kind departments can have result fields");
+
+  try {
+    return await prisma.$transaction([
+      prisma.labFieldDefinition.deleteMany({ where: { clinicId, departmentId } }),
+      prisma.labFieldDefinition.createMany({
+        data: fields.map((f, order) => ({ clinicId, departmentId, order, ...f })),
+      }),
+    ]);
+  } catch {
+    throw new Error("Can't remove a field that already has recorded results — history would be lost.");
+  }
 }
 
 export async function listDoctors(clinicId: string) {
@@ -361,23 +431,28 @@ export async function listStaff(clinicId: string) {
   });
 }
 
+function requiresDoctorRecord(role: string): role is keyof typeof STAFF_ROLE_TO_DEPARTMENT_KIND {
+  return (STAFF_ROLES_REQUIRING_DOCTOR as string[]).includes(role);
+}
+
 export async function inviteStaff(clinicId: string, input: z.infer<typeof inviteStaffSchema>) {
-  if (input.role === "DOCTOR" && !input.doctorId) {
-    throw new Error("A doctor login must be linked to a doctor record");
+  if (requiresDoctorRecord(input.role)) {
+    if (!input.doctorId) throw new Error("This login must be linked to a staff record");
+    await assertDoctorMatchesRole(input.doctorId, input.role);
   }
   return prisma.user.create({
     data: {
       clinicId,
       email: input.email.trim().toLowerCase(),
       role: input.role,
-      doctorId: input.role === "DOCTOR" ? input.doctorId : undefined,
+      doctorId: requiresDoctorRecord(input.role) ? input.doctorId : undefined,
       photoUrl: input.photoUrl || null,
     },
   });
 }
 
 export const updateStaffSchema = z.object({
-  role: z.enum(["RECEPTIONIST", "DOCTOR"]),
+  role: z.enum(["RECEPTIONIST", "DOCTOR", "NURSE", "LAB"]),
   doctorId: z.string().optional(),
   photoUrl: photoUrlSchema,
 });
@@ -386,15 +461,16 @@ export async function updateStaff(clinicId: string, userId: string, input: z.inf
   const user = await prisma.user.findFirst({ where: { id: userId, clinicId } });
   if (!user) throw new Error("Staff member not found");
   if (user.role === "CLINIC_ADMIN") throw new Error("Can't change the clinic admin's role here");
-  if (input.role === "DOCTOR" && !input.doctorId) {
-    throw new Error("Pick which doctor record this login represents");
+  if (requiresDoctorRecord(input.role)) {
+    if (!input.doctorId) throw new Error("Pick which staff record this login represents");
+    await assertDoctorMatchesRole(input.doctorId, input.role);
   }
 
   await prisma.user.update({
     where: { id: userId },
     data: {
       role: input.role,
-      doctorId: input.role === "DOCTOR" ? input.doctorId : null,
+      doctorId: requiresDoctorRecord(input.role) ? input.doctorId : null,
       ...(input.photoUrl !== undefined ? { photoUrl: input.photoUrl || null } : {}),
     },
   });

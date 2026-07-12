@@ -26,6 +26,14 @@ export default async function DepartmentsPage({
             Name
             <input name="name" placeholder="e.g. Dermatology" required />
           </label>
+          <label>
+            Kind
+            <select name="kind" defaultValue="MEDICAL">
+              <option value="MEDICAL">Medical (bookable specialty, staffed by doctors)</option>
+              <option value="NURSE">Nurse (process stage, staffed by nurses)</option>
+              <option value="LAB">Lab (process stage, staffed by lab techs, with custom result fields)</option>
+            </select>
+          </label>
           <label className="card-title-icon" style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             <input type="checkbox" name="isBookable" defaultChecked style={{ width: "auto" }} />
             Bookable by patients (uncheck for process-only departments like &quot;Nurse&quot;)
@@ -44,6 +52,7 @@ export default async function DepartmentsPage({
             <thead>
               <tr>
                 <th>Name</th>
+                <th>Kind</th>
                 <th>Bookable</th>
                 <th>Created</th>
                 <th></th>
@@ -53,6 +62,7 @@ export default async function DepartmentsPage({
               {departments.map((d) => (
                 <tr key={d.id}>
                   <td>{d.name}</td>
+                  <td>{d.kind === "MEDICAL" ? "Medical" : d.kind === "NURSE" ? "Nurse" : "Lab"}</td>
                   <td>{d.isBookable ? "Yes" : "No"}</td>
                   <td>{d.createdAt.toLocaleDateString()}</td>
                   <td>

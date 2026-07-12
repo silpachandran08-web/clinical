@@ -16,14 +16,20 @@ export async function inviteStaffAction(formData: FormData) {
   if (!session) throw new Error("Not authenticated");
 
   const role = String(formData.get("role") ?? "");
+  const needsDoctorId = role === "DOCTOR" || role === "NURSE" || role === "LAB";
   const payload = inviteStaffSchema.parse({
     email: String(formData.get("email") ?? ""),
     role,
-    doctorId: role === "DOCTOR" ? String(formData.get("doctorId") ?? "") || undefined : undefined,
+    doctorId: needsDoctorId ? String(formData.get("doctorId") ?? "") || undefined : undefined,
     photoUrl: String(formData.get("photoUrl") ?? "").trim() || undefined,
   });
 
-  await inviteStaff(session.clinicId, payload);
+  try {
+    await inviteStaff(session.clinicId, payload);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Could not invite staff member";
+    redirect(`/admin/staff?error=${encodeURIComponent(message)}`);
+  }
   revalidatePath("/admin/staff");
 }
 
@@ -33,9 +39,10 @@ export async function editStaffAction(formData: FormData) {
 
   const userId = String(formData.get("userId"));
   const role = String(formData.get("role") ?? "");
+  const needsDoctorId = role === "DOCTOR" || role === "NURSE" || role === "LAB";
   const payload = updateStaffSchema.parse({
     role,
-    doctorId: role === "DOCTOR" ? String(formData.get("doctorId") ?? "") || undefined : undefined,
+    doctorId: needsDoctorId ? String(formData.get("doctorId") ?? "") || undefined : undefined,
     // Always present (PhotoUploadField renders the hidden input unconditionally) —
     // an empty string here means "remove the photo", not "leave unchanged".
     photoUrl: String(formData.get("photoUrl") ?? ""),

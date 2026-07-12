@@ -50,6 +50,8 @@ enum UserRole {
   CLINIC_ADMIN
   RECEPTIONIST
   DOCTOR
+  NURSE
+  LAB
 }
 
 // Tracked from day one so the eventual payment integration has data to work
@@ -165,16 +167,17 @@ model Clinic {
   subscriptionStatus    SubscriptionStatus @default(TRIALING)
   createdAt             DateTime           @default(now())
 
-  users         User[]
-  departments   Department[]
-  doctors       Doctor[]
-  patients      Patient[]
-  appointments  Appointment[]
-  conversations Conversation[]
-  transactions  Transaction[]
-  escalations   StaffEscalation[]
-  payments      Payment[]
-  flowSteps     FlowStep[]
+  users               User[]
+  departments         Department[]
+  doctors             Doctor[]
+  patients            Patient[]
+  appointments        Appointment[]
+  conversations       Conversation[]
+  transactions        Transaction[]
+  escalations         StaffEscalation[]
+  payments            Payment[]
+  flowSteps           FlowStep[]
+  labFieldDefinitions LabFieldDefinition[]
 }
 
 model Transaction {
@@ -201,7 +204,7 @@ model User {
   role      UserRole
   clinicId  String
   clinic    Clinic   @relation(fields: [clinicId], references: [id])
-  doctorId  String?  @unique // set only when role = DOCTOR, links to their Doctor row
+  doctorId  String?  @unique // set when role = DOCTOR, NURSE, or LAB — links to their Doctor (staff) row
   doctor    Doctor?  @relation(fields: [doctorId], references: [id])
   photoUrl  String?  @db.Text // profile photo, stored as a data URL (see PhotoUploadField) — no external storage configured yet
   createdAt DateTime @default(now())
@@ -225,26 +228,42 @@ model OtpCode {
 // Departments are how a clinic organizes doctors (e.g. "Dermatology",
 // "General Medicine"). The AI receptionist matches a patient's natural-
 // language request ("I need a skin doctor") against department names, not IDs.
+// MEDICAL = a bookable specialty (Dental, General Medicine...), staffed by
+// Doctor-role logins. NURSE/LAB = process-only stage departments, staffed by
+// NURSE/LAB-role logins with their own dashboards (see NurseVisit, LabResult)
+// — existing departments default to MEDICAL on migration and must be
+// re-saved by the admin if they were actually acting as a Nurse/Lab stage.
+enum DepartmentKind {
+  MEDICAL
+  NURSE
+  LAB
+}
+
 model Department {
-  id         String   @id @default(cuid())
+  id         String         @id @default(cuid())
   clinicId   String
-  clinic     Clinic   @relation(fields: [clinicId], references: [id])
+  clinic     Clinic         @relation(fields: [clinicId], references: [id])
   name       String
+  kind       DepartmentKind @default(MEDICAL)
   // false hides this department from patient-facing pickers (WhatsApp AI
   // booking + receptionist Booking tab) while it keeps working as a
   // FlowStep stage — for process-only departments like "Nurse" that
   // shouldn't be directly bookable by patients.
-  isBookable Boolean  @default(true)
-  createdAt  DateTime @default(now())
+  isBookable Boolean        @default(true)
+  createdAt  DateTime       @default(now())
 
   doctors                Doctor[]
   // FlowSteps this department OWNS, i.e. its own configured stage sequence
   // (see FlowStep.ownerDepartment).
-  flowStepsAsOwner       FlowStep[]    @relation("FlowOwner")
+  flowStepsAsOwner       FlowStep[]           @relation("FlowOwner")
   // FlowSteps where this department is an intermediate HANDLER for some
   // other department's sequence (see FlowStep.stageDepartment).
-  flowStepsAsStage       FlowStep[]    @relation("FlowStage")
+  flowStepsAsStage       FlowStep[]           @relation("FlowStage")
   currentForAppointments Appointment[]
+  // Only populated when kind = LAB — the owner-defined result fields this
+  // lab captures (see LabFieldDefinition).
+  labFieldDefinitions    LabFieldDefinition[]
+  labResults             LabResult[]
 
   @@unique([clinicId, name])
 }
@@ -301,7 +320,10 @@ model Doctor {
   slots         Slot[]
   appointments  Appointment[]
   consultations Consultation[]
-  user          User? // set when a User with role=DOCTOR is linked to this doctor
+  // Populated only for staff whose department kind is NURSE/LAB respectively.
+  nurseVisits   NurseVisit[]
+  labResults    LabResult[]
+  user          User? // set when a User with role=DOCTOR, NURSE, or LAB is linked to this staff record
 
   @@index([clinicId])
   @@index([departmentId])
@@ -360,6 +382,8 @@ model Patient {
   appointments  Appointment[]
   conversations Conversation[]
   consultations Consultation[]
+  nurseVisits   NurseVisit[]
+  labResults    LabResult[]
 
   @@unique([clinicId, phone])
   @@index([clinicId, email])
@@ -394,6 +418,8 @@ model Appointment {
   currentDepartment   Department?       @relation(fields: [currentDepartmentId], references: [id])
 
   consultation Consultation?
+  nurseVisit   NurseVisit?
+  labResult    LabResult?
   charges      AppointmentCharge[]
   payments     Payment[]
 
@@ -466,6 +492,95 @@ model Consultation {
   @@index([patientId])
   @@index([doctorId])
   @@index([followUpDate])
+}
+
+// Vitals recorded by a NURSE-role staff member (a Doctor row whose
+// department.kind = NURSE) while an appointment sits at their Flow stage —
+// required before the appointment can advance (see nurseHandlers.ts).
+model NurseVisit {
+  id            String      @id @default(cuid())
+  appointmentId String      @unique
+  appointment   Appointment @relation(fields: [appointmentId], references: [id])
+  nurseId       String
+  nurse         Doctor      @relation(fields: [nurseId], references: [id])
+  patientId     String
+  patient       Patient     @relation(fields: [patientId], references: [id])
+  bloodPressure String // e.g. "120/80" — free text, matches real charting shorthand
+  heightCm      Float
+  weightKg      Float
+  temperatureC  Float?
+  pulseBpm      Int?
+  notes         String?
+  createdAt     DateTime    @default(now())
+
+  @@index([patientId])
+  @@index([nurseId])
+}
+
+enum LabFieldType {
+  TEXT
+  NUMBER
+  TEXTAREA
+  ATTACHMENT
+}
+
+// Owner-defined result field for one LAB-kind department (e.g. Blood Lab
+// might define "Hemoglobin" NUMBER + "Notes" TEXTAREA; an X-Ray lab might
+// define a single ATTACHMENT field) — configured on that department's
+// admin edit page, replace-all-on-save (see saveLabFieldDefinitions).
+model LabFieldDefinition {
+  id           String       @id @default(cuid())
+  clinicId     String
+  clinic       Clinic       @relation(fields: [clinicId], references: [id])
+  departmentId String
+  department   Department   @relation(fields: [departmentId], references: [id])
+  label        String
+  fieldType    LabFieldType
+  required     Boolean      @default(false)
+  order        Int
+  createdAt    DateTime     @default(now())
+
+  values LabResultValue[]
+
+  @@unique([departmentId, order])
+  @@index([clinicId])
+}
+
+// One lab visit's captured results (see LabResultValue for the actual
+// per-field values), recorded by a LAB-role staff member while the
+// appointment sits at their Flow stage.
+model LabResult {
+  id            String      @id @default(cuid())
+  appointmentId String      @unique
+  appointment   Appointment @relation(fields: [appointmentId], references: [id])
+  labStaffId    String
+  labStaff      Doctor      @relation(fields: [labStaffId], references: [id])
+  patientId     String
+  patient       Patient     @relation(fields: [patientId], references: [id])
+  departmentId  String
+  department    Department  @relation(fields: [departmentId], references: [id])
+  createdAt     DateTime    @default(now())
+
+  values LabResultValue[]
+
+  @@index([patientId])
+}
+
+// One submitted value against one LabFieldDefinition. textValue holds
+// TEXT/TEXTAREA/NUMBER (as a string) or an ATTACHMENT data URL alike.
+// fieldDefinition has no cascade delete: removing a field definition that
+// already has recorded values must fail loudly, not silently erase
+// patient lab history (see saveLabFieldDefinitions).
+model LabResultValue {
+  id                String             @id @default(cuid())
+  labResultId       String
+  labResult         LabResult          @relation(fields: [labResultId], references: [id], onDelete: Cascade)
+  fieldDefinitionId String
+  fieldDefinition   LabFieldDefinition @relation(fields: [fieldDefinitionId], references: [id])
+  textValue         String?            @db.Text
+
+  @@unique([labResultId, fieldDefinitionId])
+  @@index([fieldDefinitionId])
 }
 
 model Conversation {

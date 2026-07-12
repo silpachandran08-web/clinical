@@ -5,12 +5,16 @@ const ROLE_HOME: Record<UserRole, string> = {
   CLINIC_ADMIN: "/admin",
   RECEPTIONIST: "/receptionist",
   DOCTOR: "/doctor",
+  NURSE: "/nurse",
+  LAB: "/lab",
 };
 
 const ROLE_FOR_PREFIX: Record<string, UserRole> = {
   "/admin": "CLINIC_ADMIN",
   "/receptionist": "RECEPTIONIST",
   "/doctor": "DOCTOR",
+  "/nurse": "NURSE",
+  "/lab": "LAB",
 };
 
 export async function proxy(request: NextRequest) {
@@ -49,5 +53,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/", "/admin/:path*", "/receptionist/:path*", "/doctor/:path*"],
+  matcher: ["/", "/admin/:path*", "/receptionist/:path*", "/doctor/:path*", "/nurse/:path*", "/lab/:path*"],
 };

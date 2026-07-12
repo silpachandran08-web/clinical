@@ -29,7 +29,12 @@ export async function listMyQueue(clinicId: string, doctorId: string, timeZone: 
       status: { in: ["CHECKED_IN", "IN_PROGRESS"] },
       slot: { startsAt: { gte: startOfToday(timeZone), lt: startOfTomorrow(timeZone) } },
     },
-    include: { patient: true, slot: true },
+    include: {
+      patient: true,
+      slot: true,
+      nurseVisit: true,
+      labResult: { include: { values: { include: { fieldDefinition: true } } } },
+    },
     orderBy: { slot: { startsAt: "asc" } },
   });
 }
@@ -66,14 +71,33 @@ export async function listStageQueue(clinicId: string, stageDepartmentId: string
 }
 
 /**
- * Advances an AT_STAGE appointment to the next configured FlowStep, or — if
- * it was the last one — hands it off to CHECKED_IN, where it appears in the
- * assigned doctor's own listMyQueue completely unchanged. `staffDoctorId`
- * must belong to the same department as the appointment's current stage
- * (only staff actually working that stage can advance it, not any doctor
- * in the clinic).
+ * Given an appointment currently AT_STAGE at `currentDepartmentId`, computes
+ * the Prisma update data to either move it to the next configured FlowStep,
+ * or — if it was the last one — hand it off to CHECKED_IN (where it appears
+ * in the assigned doctor's own listMyQueue completely unchanged). Shared by
+ * advanceAppointmentStage and the Nurse/Lab "record + advance" functions so
+ * the FlowStep-lookup logic lives in exactly one place.
  */
-export async function advanceAppointmentStage(clinicId: string, staffDoctorId: string, appointmentId: string) {
+export async function computeNextStageUpdate(clinicId: string, ownerDepartmentId: string, currentDepartmentId: string) {
+  const steps = await prisma.flowStep.findMany({
+    where: { clinicId, ownerDepartmentId },
+    orderBy: { order: "asc" },
+  });
+  const currentIndex = steps.findIndex((s) => s.stageDepartmentId === currentDepartmentId);
+  const nextStep = steps[currentIndex + 1];
+
+  return nextStep
+    ? { currentDepartmentId: nextStep.stageDepartmentId }
+    : { status: "CHECKED_IN" as const, currentDepartmentId: null };
+}
+
+/**
+ * Loads an AT_STAGE appointment and confirms `staffDoctorId` belongs to the
+ * same department as its current stage (only staff actually working that
+ * stage may act on it, not any doctor in the clinic) — shared guard used by
+ * advanceAppointmentStage and the Nurse/Lab "record + advance" functions.
+ */
+export async function loadStageAppointmentForStaff(clinicId: string, staffDoctorId: string, appointmentId: string) {
   const [staff, appointment] = await Promise.all([
     prisma.doctor.findFirst({ where: { id: staffDoctorId, clinicId }, select: { departmentId: true } }),
     prisma.appointment.findFirst({
@@ -87,20 +111,21 @@ export async function advanceAppointmentStage(clinicId: string, staffDoctorId: s
   if (staff.departmentId !== appointment.currentDepartmentId) {
     throw new Error("This appointment isn't at your department's stage");
   }
+  return appointment;
+}
 
-  const steps = await prisma.flowStep.findMany({
-    where: { clinicId, ownerDepartmentId: appointment.doctor.departmentId },
-    orderBy: { order: "asc" },
-  });
-  const currentIndex = steps.findIndex((s) => s.stageDepartmentId === appointment.currentDepartmentId);
-  const nextStep = steps[currentIndex + 1];
-
-  await prisma.appointment.update({
-    where: { id: appointmentId },
-    data: nextStep
-      ? { currentDepartmentId: nextStep.stageDepartmentId }
-      : { status: "CHECKED_IN", currentDepartmentId: null },
-  });
+/**
+ * Advances an AT_STAGE appointment to the next configured FlowStep, or — if
+ * it was the last one — hands it off to CHECKED_IN, where it appears in the
+ * assigned doctor's own listMyQueue completely unchanged. `staffDoctorId`
+ * must belong to the same department as the appointment's current stage
+ * (only staff actually working that stage can advance it, not any doctor
+ * in the clinic).
+ */
+export async function advanceAppointmentStage(clinicId: string, staffDoctorId: string, appointmentId: string) {
+  const appointment = await loadStageAppointmentForStaff(clinicId, staffDoctorId, appointmentId);
+  const update = await computeNextStageUpdate(clinicId, appointment.doctor.departmentId, appointment.currentDepartmentId!);
+  await prisma.appointment.update({ where: { id: appointmentId }, data: update });
 }
 
 export async function countCompletedToday(clinicId: string, doctorId: string, timeZone: string) {

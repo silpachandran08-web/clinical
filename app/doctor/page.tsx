@@ -151,6 +151,36 @@ export default async function DoctorQueuePage({
                   {currentDemographics ? "View patient history" : "Add patient details →"}
                 </Link>
               </p>
+
+              {current.nurseVisit && (
+                <div style={{ padding: 12, background: "var(--surface-2)", borderRadius: "var(--radius-sm)", marginBottom: 12, fontSize: 13 }}>
+                  <strong style={{ display: "block", marginBottom: 4 }}>Vitals</strong>
+                  BP {current.nurseVisit.bloodPressure} · {current.nurseVisit.heightCm} cm · {current.nurseVisit.weightKg} kg
+                  {current.nurseVisit.temperatureC != null && <> · {current.nurseVisit.temperatureC}°C</>}
+                  {current.nurseVisit.pulseBpm != null && <> · {current.nurseVisit.pulseBpm} bpm</>}
+                  {current.nurseVisit.notes && (
+                    <div className="muted" style={{ marginTop: 4 }}>{current.nurseVisit.notes}</div>
+                  )}
+                </div>
+              )}
+
+              {current.labResult && (
+                <div style={{ padding: 12, background: "var(--surface-2)", borderRadius: "var(--radius-sm)", marginBottom: 12, fontSize: 13 }}>
+                  <strong style={{ display: "block", marginBottom: 4 }}>Lab results</strong>
+                  {current.labResult.values.map((v) => (
+                    <div key={v.id} style={{ marginBottom: 6 }}>
+                      <span className="muted">{v.fieldDefinition.label}: </span>
+                      {v.fieldDefinition.fieldType === "ATTACHMENT" && v.textValue ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={v.textValue} alt={v.fieldDefinition.label} style={{ maxWidth: 200, display: "block", marginTop: 4, borderRadius: "var(--radius-sm)" }} />
+                      ) : (
+                        v.textValue
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <form action={completeConsultationAction} className="stack" style={{ maxWidth: 560 }}>
                 <input type="hidden" name="appointmentId" value={current.id} />
                 <label>

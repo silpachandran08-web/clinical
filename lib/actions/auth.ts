@@ -13,6 +13,8 @@ const ROLE_HOME: Record<UserRole, string> = {
   CLINIC_ADMIN: "/admin",
   RECEPTIONIST: "/receptionist",
   DOCTOR: "/doctor",
+  NURSE: "/nurse",
+  LAB: "/lab",
 };
 
 async function setSession(userId: string, clinicId: string, role: UserRole, doctorId?: string | null) {

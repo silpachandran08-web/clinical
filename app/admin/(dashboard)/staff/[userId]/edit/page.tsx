@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { listDoctors, listStaff } from "@/src/adminHandlers";
+import { listDepartments, listDoctors, listStaff } from "@/src/adminHandlers";
 import { editStaffAction } from "@/lib/actions/staff";
 import { getSession } from "@/lib/session";
 import { PhotoUploadField } from "@/app/admin/PhotoUploadField";
@@ -14,11 +14,16 @@ export default async function EditStaffPage({
   if (!session) redirect("/login");
 
   const { userId } = await params;
-  const [staff, doctors] = await Promise.all([listStaff(session.clinicId), listDoctors(session.clinicId)]);
+  const [staff, doctors, departments] = await Promise.all([
+    listStaff(session.clinicId),
+    listDoctors(session.clinicId),
+    listDepartments(session.clinicId),
+  ]);
   const member = staff.find((u) => u.id === userId);
   if (!member || member.role === "CLINIC_ADMIN") redirect("/admin/staff");
 
   const unlinkedDoctors = doctors.filter((d) => !d.user || d.user.id === member.id);
+  const hasLabDepartment = departments.some((d) => d.kind === "LAB");
 
   return (
     <div>
@@ -36,10 +41,12 @@ export default async function EditStaffPage({
             <select name="role" defaultValue={member.role} required>
               <option value="RECEPTIONIST">Receptionist</option>
               <option value="DOCTOR">Doctor</option>
+              <option value="NURSE">Nurse</option>
+              {(hasLabDepartment || member.role === "LAB") && <option value="LAB">Lab</option>}
             </select>
           </label>
           <label>
-            If Doctor — which doctor record is this?
+            If Doctor/Nurse/Lab — which staff record is this?
             <select name="doctorId" defaultValue={member.doctorId ?? ""}>
               <option value="">N/A (receptionist)</option>
               {unlinkedDoctors.map((d) => (

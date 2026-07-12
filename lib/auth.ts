@@ -4,13 +4,13 @@
 export const SESSION_COOKIE_NAME = "session";
 const SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000;
 
-export type UserRole = "CLINIC_ADMIN" | "RECEPTIONIST" | "DOCTOR";
+export type UserRole = "CLINIC_ADMIN" | "RECEPTIONIST" | "DOCTOR" | "NURSE" | "LAB";
 
 export interface SessionPayload {
   userId: string;
   clinicId: string;
   role: UserRole;
-  doctorId?: string | null; // set only when role = DOCTOR
+  doctorId?: string | null; // set when role = DOCTOR, NURSE, or LAB
 }
 
 const encoder = new TextEncoder();
