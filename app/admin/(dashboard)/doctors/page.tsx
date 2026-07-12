@@ -5,16 +5,9 @@ import { addDoctorAction, deleteDoctorAction, toggleDoctorActiveAction } from "@
 import { getSession } from "@/lib/session";
 import { AvatarThumb } from "@/app/AvatarThumb";
 import { PhotoUploadField } from "@/app/admin/PhotoUploadField";
+import { ScheduleFields } from "./ScheduleFields";
 
-const DAYS = [
-  { value: 0, label: "Sun" },
-  { value: 1, label: "Mon" },
-  { value: 2, label: "Tue" },
-  { value: 3, label: "Wed" },
-  { value: 4, label: "Thu" },
-  { value: 5, label: "Fri" },
-  { value: 6, label: "Sat" },
-];
+const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 export default async function DoctorsPage({
   searchParams,
@@ -31,12 +24,14 @@ export default async function DoctorsPage({
     listDoctors(session.clinicId),
   ]);
 
+  const departmentOptions = departments.map((d) => ({ id: d.id, name: d.name, kind: d.kind }));
+
   if (departments.length === 0) {
     return (
       <div>
-        <h1>Doctors</h1>
+        <h1>Clinic staff</h1>
         <p className="empty-state">
-          Add a department first before adding doctors. <a href="/admin/departments">Go to Departments</a>
+          Add a department first before adding staff. <a href="/admin/departments">Go to Departments</a>
         </p>
       </div>
     );
@@ -44,72 +39,31 @@ export default async function DoctorsPage({
 
   return (
     <div>
-      <h1>Doctors</h1>
+      <h1>Clinic staff</h1>
 
       <div className="card">
-        <h2>Add a doctor</h2>
+        <h2>Add a staff member</h2>
+        <p className="muted" style={{ marginTop: 0, marginBottom: 14, fontSize: 12.5 }}>
+          Doctors, nurses, and lab techs all live here — the department's kind decides which fields apply.
+        </p>
         <form action={addDoctorAction} className="stack" style={{ maxWidth: 480 }}>
           <PhotoUploadField name="photoUrl" />
           <label>
             Name
-            <input name="name" placeholder="Dr. Fatima Al-Harbi" required />
-          </label>
-          <label>
-            Department
-            <select name="departmentId" required defaultValue="">
-              <option value="" disabled>
-                Choose a department
-              </option>
-              {departments.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name}
-                </option>
-              ))}
-            </select>
+            <input name="name" placeholder="e.g. Dr. Fatima Al-Harbi / Sara (nurse)" required />
           </label>
 
-          <label>
-            Consultation Fee
-            <input type="number" name="consultationFee" step="0.01" min="0.01" defaultValue="0" required />
-          </label>
+          <ScheduleFields departments={departmentOptions} />
 
-          <label>Working days</label>
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-            {DAYS.map((d) => (
-              <label
-                key={d.value}
-                style={{ flexDirection: "row", alignItems: "center", gap: 4, color: "var(--text)" }}
-              >
-                <input type="checkbox" name="days" value={d.value} style={{ width: "auto" }} />
-                {d.label}
-              </label>
-            ))}
-          </div>
-
-          <div className="time-row">
-            <label>
-              Start time
-              <input type="time" name="startTime" defaultValue="09:00" required />
-            </label>
-            <label>
-              End time
-              <input type="time" name="endTime" defaultValue="17:00" required />
-            </label>
-            <label>
-              Slot length (min)
-              <input type="number" name="slotDurationMinutes" defaultValue={20} min={5} step={5} required />
-            </label>
-          </div>
-
-          <button type="submit">Add doctor</button>
+          <button type="submit">Add staff member</button>
         </form>
       </div>
 
       <div className="card">
-        <h2>All doctors</h2>
+        <h2>All staff records</h2>
         {params.error && <p className="error" style={{ marginBottom: 12 }}>{params.error}</p>}
         {doctors.length === 0 ? (
-          <p className="empty-state">No doctors yet.</p>
+          <p className="empty-state">No staff records yet.</p>
         ) : (
           <table>
             <thead>
@@ -135,7 +89,7 @@ export default async function DoctorsPage({
                   <td>{doc.department.name}</td>
                   <td>{doc.specialization || "—"}</td>
                   <td>{doc.consultationFee ? `${doc.consultationFee.toFixed(2)} SAR` : "—"}</td>
-                  <td>{doc.workingHours.map((wh) => DAYS[wh.dayOfWeek].label).join(", ") || "—"}</td>
+                  <td>{doc.workingHours.map((wh) => DAY_LABELS[wh.dayOfWeek]).join(", ") || "—"}</td>
                   <td>{doc.user ? doc.user.email : <span className="muted">not invited</span>}</td>
                   <td>
                     <span className={`badge ${doc.active ? "success" : "danger"}`}>
@@ -171,7 +125,7 @@ export default async function DoctorsPage({
         )}
       </div>
       <p className="muted">
-        Give a doctor their own login from the <a href="/admin/staff">Staff</a> page.
+        Give a staff member their own login from the <a href="/admin/staff">Staff</a> page.
       </p>
     </div>
   );

@@ -27,7 +27,7 @@ export async function addDoctorAction(formData: FormData) {
   const payload = createDoctorSchema.parse({
     departmentId: String(formData.get("departmentId")),
     name: String(formData.get("name") ?? ""),
-    consultationFee: Number(formData.get("consultationFee") ?? 0),
+    consultationFee: formData.get("consultationFee") ? Number(formData.get("consultationFee")) : undefined,
     qualifications: String(formData.get("qualifications") ?? "").trim() || undefined,
     bio: String(formData.get("bio") ?? "").trim() || undefined,
     specialization: String(formData.get("specialization") ?? "").trim() || undefined,

@@ -23,7 +23,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <Link href="/admin/clinic">Clinic</Link>
         <Link href="/admin/departments">Departments</Link>
         <Link href="/admin/flow">Flow</Link>
-        <Link href="/admin/doctors">Doctors</Link>
+        <Link href="/admin/doctors">Clinic staff</Link>
         <Link href="/admin/staff">Staff</Link>
         <Link href="/admin/patients">Patients</Link>
         <Link href="/admin/appointments">Appointments</Link>

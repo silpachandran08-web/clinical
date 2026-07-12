@@ -4,16 +4,7 @@ import { listDepartments, listDoctors } from "@/src/adminHandlers";
 import { editDoctorAction } from "@/lib/actions/doctors";
 import { getSession } from "@/lib/session";
 import { PhotoUploadField } from "@/app/admin/PhotoUploadField";
-
-const DAYS = [
-  { value: 0, label: "Sun" },
-  { value: 1, label: "Mon" },
-  { value: 2, label: "Tue" },
-  { value: 3, label: "Wed" },
-  { value: 4, label: "Thu" },
-  { value: 5, label: "Fri" },
-  { value: 6, label: "Sat" },
-];
+import { ScheduleFields } from "../../ScheduleFields";
 
 export default async function EditDoctorPage({
   params,
@@ -31,13 +22,14 @@ export default async function EditDoctorPage({
   const doctor = doctors.find((d) => d.id === doctorId);
   if (!doctor) redirect("/admin/doctors");
 
-  const activeDays = new Set(doctor.workingHours.map((wh) => wh.dayOfWeek));
+  const departmentOptions = departments.map((d) => ({ id: d.id, name: d.name, kind: d.kind }));
+  const activeDays = doctor.workingHours.map((wh) => wh.dayOfWeek);
   const templateHours = doctor.workingHours[0];
 
   return (
     <div>
       <p>
-        <Link href="/admin/doctors">&larr; Back to doctors</Link>
+        <Link href="/admin/doctors">&larr; Back to staff</Link>
       </p>
       <h1>Edit {doctor.name}</h1>
 
@@ -49,30 +41,16 @@ export default async function EditDoctorPage({
             Name
             <input name="name" defaultValue={doctor.name} required />
           </label>
-          <label>
-            Department
-            <select name="departmentId" defaultValue={doctor.departmentId} required>
-              {departments.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name}
-                </option>
-              ))}
-            </select>
-          </label>
 
-          <div style={{ borderTop: "1px solid var(--border-soft)", paddingTop: 16, marginTop: 8 }} />
-          <h3 style={{ marginBottom: 12 }}>Consultation & Billing</h3>
-          <label>
-            Consultation Fee
-            <input
-              type="number"
-              name="consultationFee"
-              step="0.01"
-              min="0.01"
-              defaultValue={Number(doctor.consultationFee) || 0}
-              required
-            />
-          </label>
+          <ScheduleFields
+            departments={departmentOptions}
+            defaultDepartmentId={doctor.departmentId}
+            defaultConsultationFee={Number(doctor.consultationFee) || 0}
+            defaultActiveDays={activeDays}
+            defaultStartTime={templateHours?.startTime ?? "09:00"}
+            defaultEndTime={templateHours?.endTime ?? "17:00"}
+            defaultSlotDurationMinutes={templateHours?.slotDurationMinutes ?? 20}
+          />
 
           <div style={{ borderTop: "1px solid var(--border-soft)", paddingTop: 16, marginTop: 8 }} />
           <h3 style={{ marginBottom: 12 }}>Professional Details (Optional)</h3>
@@ -108,49 +86,6 @@ export default async function EditDoctorPage({
             Years of Experience
             <input type="number" name="yearsOfExperience" min="0" max="60" defaultValue={doctor.yearsOfExperience || ""} />
           </label>
-
-          <div style={{ borderTop: "1px solid var(--border-soft)", paddingTop: 16, marginTop: 8 }} />
-          <h3 style={{ marginBottom: 12 }}>Schedule</h3>
-          <label>Working days</label>
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-            {DAYS.map((d) => (
-              <label
-                key={d.value}
-                style={{ flexDirection: "row", alignItems: "center", gap: 4, color: "var(--text)" }}
-              >
-                <input
-                  type="checkbox"
-                  name="days"
-                  value={d.value}
-                  defaultChecked={activeDays.has(d.value)}
-                  style={{ width: "auto" }}
-                />
-                {d.label}
-              </label>
-            ))}
-          </div>
-
-          <div className="time-row">
-            <label>
-              Start time
-              <input type="time" name="startTime" defaultValue={templateHours?.startTime ?? "09:00"} required />
-            </label>
-            <label>
-              End time
-              <input type="time" name="endTime" defaultValue={templateHours?.endTime ?? "17:00"} required />
-            </label>
-            <label>
-              Slot length (min)
-              <input
-                type="number"
-                name="slotDurationMinutes"
-                defaultValue={templateHours?.slotDurationMinutes ?? 20}
-                min={5}
-                step={5}
-                required
-              />
-            </label>
-          </div>
 
           <p className="muted" style={{ fontSize: 12.5 }}>
             Saving replaces the weekly schedule and regenerates not-yet-booked future slots. Already

@@ -66,7 +66,8 @@ const photoUrlSchema = z.string().max(2_000_000).optional();
 export const createDoctorSchema = z.object({
   departmentId: z.string(),
   name: z.string().min(1),
-  consultationFee: z.number().min(0.01).default(0),
+  // 0 is valid — nurse/lab staff records don't take a consultation fee.
+  consultationFee: z.number().min(0).default(0),
   qualifications: z.string().max(500).optional(),
   bio: z.string().max(1000).optional(),
   specialization: z.string().max(200).optional(),

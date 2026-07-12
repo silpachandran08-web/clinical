@@ -69,7 +69,7 @@ export function RoleAndStaffPicker({ unlinkedDoctors, hasLabDepartment, defaultR
           {eligibleDoctors.length === 0 && (
             <p className="muted" style={{ marginTop: -4, fontSize: 12.5 }}>
               No unlinked {kindLabel} staff records. Add one under{" "}
-              <a href="/admin/doctors">Doctors</a> first (pick a {kindLabel === "medical" ? "medical" : `${kindLabel}-kind`} department).
+              <a href="/admin/doctors">Clinic staff</a> first (pick a {kindLabel === "medical" ? "medical" : `${kindLabel}-kind`} department).
             </p>
           )}
         </>
