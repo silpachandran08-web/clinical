@@ -64,12 +64,18 @@ export function BookingTab({
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [addFormData, setAddFormData] = useState({ name: "", phone: "", email: "" });
+  const [addFormTouched, setAddFormTouched] = useState(false);
   const [isAddingPatient, startAddingTransition] = useTransition();
   const [searchError, setSearchError] = useState<string | null>(null);
   const [selectedDoctor, setSelectedDoctor] = useState(selectedDoctorId);
   const [currentWeekStart, setCurrentWeekStart] = useState(weekStart);
   const [displayWeek, setDisplayWeek] = useState(week);
   const [isFetchingWeek, startFetchingWeek] = useTransition();
+
+  // canGoBack from the server reflects the INITIAL weekStart; once the user
+  // clicks "Next week" the server prop stays stale, so recompute on the
+  // client using the always-current week the page was loaded on (weekStart).
+  const canGoBackFromCurrent = currentWeekStart.getTime() > weekStart.getTime();
 
   // Handle live search
   const handleSearchChange = async (text: string) => {
@@ -79,13 +85,28 @@ export function BookingTab({
     if (!text.trim()) {
       setSearchResults([]);
       setShowAddForm(false);
+      setAddFormTouched(false);
+      setAddFormData({ name: "", phone: "", email: "" });
       return;
     }
 
     try {
       const results = await searchPatientsAction(text);
       setSearchResults(results);
-      setShowAddForm(results.length === 0);
+      const shouldShow = results.length === 0;
+      setShowAddForm(shouldShow);
+      // Pre-fill the add form with whatever the user typed in the search box —
+      // treat digit-heavy input as a phone, otherwise as a name. Stop syncing
+      // once the user actually edits the add form fields themselves.
+      if (shouldShow && !addFormTouched) {
+        const trimmed = text.trim();
+        const looksLikePhone = /^[+\d\s\-()]{3,}$/.test(trimmed);
+        setAddFormData((prev) => ({
+          name: looksLikePhone ? prev.name : trimmed,
+          phone: looksLikePhone ? trimmed : prev.phone,
+          email: prev.email,
+        }));
+      }
     } catch (err) {
       setSearchError("Failed to search patients");
       console.error(err);
@@ -98,6 +119,7 @@ export function BookingTab({
     setSearchResults([]);
     setShowAddForm(false);
     setAddFormData({ name: "", phone: "", email: "" });
+    setAddFormTouched(false);
   };
 
   const handleAddPatient = async () => {
@@ -126,6 +148,7 @@ export function BookingTab({
           setSearchResults([]);
           setShowAddForm(false);
           setAddFormData({ name: "", phone: "", email: "" });
+          setAddFormTouched(false);
         }
       } catch (err) {
         setSearchError("Failed to add patient");
@@ -148,7 +171,7 @@ export function BookingTab({
       currentWeekStart.getTime() + (direction === "next" ? 7 * DAY_MS : -7 * DAY_MS)
     );
 
-    if (direction === "prev" && !canGoBack) return;
+    if (direction === "prev" && !canGoBackFromCurrent) return;
     if (!selectedDoctor) return;
 
     startFetchingWeek(async () => {
@@ -258,7 +281,10 @@ export function BookingTab({
                   <input
                     type="text"
                     value={addFormData.name}
-                    onChange={(e) => setAddFormData({ ...addFormData, name: e.target.value })}
+                    onChange={(e) => {
+                      setAddFormData({ ...addFormData, name: e.target.value });
+                      setAddFormTouched(true);
+                    }}
                     placeholder="Patient name"
                   />
                 </label>
@@ -267,7 +293,10 @@ export function BookingTab({
                   <input
                     type="text"
                     value={addFormData.phone}
-                    onChange={(e) => setAddFormData({ ...addFormData, phone: e.target.value })}
+                    onChange={(e) => {
+                      setAddFormData({ ...addFormData, phone: e.target.value });
+                      setAddFormTouched(true);
+                    }}
                     placeholder="+9665XXXXXXXX"
                   />
                 </label>
@@ -276,7 +305,10 @@ export function BookingTab({
                   <input
                     type="email"
                     value={addFormData.email}
-                    onChange={(e) => setAddFormData({ ...addFormData, email: e.target.value })}
+                    onChange={(e) => {
+                      setAddFormData({ ...addFormData, email: e.target.value });
+                      setAddFormTouched(true);
+                    }}
                     placeholder="jane@example.com"
                   />
                 </label>
@@ -379,14 +411,14 @@ export function BookingTab({
               <div className="week-nav">
                 <button
                   onClick={() => handleNavigateWeek("prev")}
-                  disabled={!canGoBack || isFetchingWeek}
+                  disabled={!canGoBackFromCurrent || isFetchingWeek}
                   style={{
                     padding: "8px 12px",
                     background: "var(--surface-2)",
                     border: "1px solid var(--border-soft)",
                     borderRadius: "var(--radius-sm)",
-                    cursor: (!canGoBack || isFetchingWeek) ? "not-allowed" : "pointer",
-                    opacity: (!canGoBack || isFetchingWeek) ? 0.5 : 1,
+                    cursor: (!canGoBackFromCurrent || isFetchingWeek) ? "not-allowed" : "pointer",
+                    opacity: (!canGoBackFromCurrent || isFetchingWeek) ? 0.5 : 1,
                     fontSize: 12,
                     fontWeight: 500,
                     color: "var(--text)",
