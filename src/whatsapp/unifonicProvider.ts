@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { env } from "../config/env";
-import type { InboundWhatsAppMessage, WhatsAppProvider } from "./provider";
+import type { InboundWhatsAppMessage, WhatsAppProvider, WhatsAppButton, WhatsAppListItem } from "./provider";
 
 /**
  * Unifonic WhatsApp Business API adapter.
@@ -36,6 +36,22 @@ export class UnifonicProvider implements WhatsAppProvider {
       const text = await res.text();
       throw new Error(`Unifonic send failed (${res.status}): ${text}`);
     }
+  }
+
+  async sendButtonMessage(toPhone: string, body: string, buttons: WhatsAppButton[]): Promise<void> {
+    const buttonList = buttons.map((b, i) => `${i + 1}. ${b.title}`).join("\n");
+    const message = `${body}\n\n${buttonList}`;
+    await this.sendMessage(toPhone, message);
+  }
+
+  async sendListMessage(
+    toPhone: string,
+    body: string,
+    listItems: WhatsAppListItem[]
+  ): Promise<void> {
+    const itemList = listItems.map((item, i) => `${i + 1}. ${item.title}`).join("\n");
+    const message = `${body}\n\n${itemList}`;
+    await this.sendMessage(toPhone, message);
   }
 
   parseWebhookPayload(rawBody: unknown): InboundWhatsAppMessage[] {

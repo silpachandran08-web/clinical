@@ -4,6 +4,18 @@ export interface InboundWhatsAppMessage {
   body: string;
   providerMessageId: string;
   timestamp: Date;
+  buttonId?: string; // set if this is a button click response
+}
+
+export interface WhatsAppButton {
+  id: string;
+  title: string; // button label (max 20 chars)
+}
+
+export interface WhatsAppListItem {
+  id: string;
+  title: string;
+  description?: string;
 }
 
 // Every WhatsApp BSP (Unifonic, Meta direct, Twilio, ...) speaks a different
@@ -12,6 +24,17 @@ export interface InboundWhatsAppMessage {
 // adding a provider never touches conversation logic.
 export interface WhatsAppProvider {
   sendMessage(toPhone: string, body: string): Promise<void>;
+  sendButtonMessage(
+    toPhone: string,
+    body: string,
+    buttons: WhatsAppButton[]
+  ): Promise<void>;
+  sendListMessage(
+    toPhone: string,
+    body: string,
+    listItems: WhatsAppListItem[],
+    buttonLabel?: string
+  ): Promise<void>;
   parseWebhookPayload(rawBody: unknown): InboundWhatsAppMessage[];
   verifyWebhookRequest(headers: Record<string, string | undefined>, rawBody: string): boolean;
 }

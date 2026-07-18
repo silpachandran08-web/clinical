@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import type { InboundWhatsAppMessage, WhatsAppProvider } from "./provider";
+import type { InboundWhatsAppMessage, WhatsAppProvider, WhatsAppButton, WhatsAppListItem } from "./provider";
 
 export interface MetaCredentials {
   phoneNumberId: string;
@@ -40,6 +40,84 @@ export class MetaCloudProvider implements WhatsAppProvider {
     }
   }
 
+  async sendButtonMessage(toPhone: string, body: string, buttons: WhatsAppButton[]): Promise<void> {
+    const url = `https://graph.facebook.com/v20.0/${this.creds.phoneNumberId}/messages`;
+
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${this.creds.accessToken}`,
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        to: toPhone.replace("+", ""),
+        type: "interactive",
+        interactive: {
+          type: "button",
+          body: { text: body },
+          action: {
+            buttons: buttons.map((btn) => ({
+              type: "reply",
+              reply: {
+                id: btn.id,
+                title: btn.title.substring(0, 20), // Meta limit
+              },
+            })),
+          },
+        },
+      }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Meta Cloud API button send failed (${res.status}): ${text}`);
+    }
+  }
+
+  async sendListMessage(
+    toPhone: string,
+    body: string,
+    listItems: WhatsAppListItem[],
+    buttonLabel: string = "Select"
+  ): Promise<void> {
+    const url = `https://graph.facebook.com/v20.0/${this.creds.phoneNumberId}/messages`;
+
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${this.creds.accessToken}`,
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        to: toPhone.replace("+", ""),
+        type: "interactive",
+        interactive: {
+          type: "list",
+          body: { text: body },
+          action: {
+            button: buttonLabel.substring(0, 20),
+            sections: [
+              {
+                rows: listItems.map((item) => ({
+                  id: item.id,
+                  title: item.title.substring(0, 24), // Meta limit
+                  description: item.description?.substring(0, 72), // Meta limit
+                })),
+              },
+            ],
+          },
+        },
+      }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Meta Cloud API list send failed (${res.status}): ${text}`);
+    }
+  }
+
   parseWebhookPayload(rawBody: unknown): InboundWhatsAppMessage[] {
     return parseMetaWebhookPayload(rawBody);
   }
@@ -70,7 +148,19 @@ export function parseMetaWebhookPayload(rawBody: unknown): InboundWhatsAppMessag
       changes?: Array<{
         value?: {
           metadata?: { display_phone_number?: string };
-          messages?: Array<{ from: string; id: string; timestamp: string; text?: { body: string } }>;
+          messages?: Array<{
+            from: string;
+            id: string;
+            timestamp: string;
+            type?: string;
+            text?: { body: string };
+            button?: { payload: string }; // button click
+            interactive?: {
+              type: string;
+              button_reply?: { id: string; title: string };
+              list_reply?: { id: string; title: string };
+            };
+          }>;
         };
       }>;
     }>;
@@ -81,12 +171,24 @@ export function parseMetaWebhookPayload(rawBody: unknown): InboundWhatsAppMessag
     for (const change of entry.changes ?? []) {
       const to = normalizePhone(change.value?.metadata?.display_phone_number ?? "");
       for (const m of change.value?.messages ?? []) {
+        let body = m.text?.body ?? "";
+        let buttonId: string | undefined;
+
+        if (m.interactive?.button_reply) {
+          buttonId = m.interactive.button_reply.id;
+          body = m.interactive.button_reply.title;
+        } else if (m.interactive?.list_reply) {
+          buttonId = m.interactive.list_reply.id;
+          body = m.interactive.list_reply.title;
+        }
+
         messages.push({
           fromPhone: normalizePhone(m.from),
           toPhone: to,
-          body: m.text?.body ?? "",
+          body,
           providerMessageId: m.id,
           timestamp: new Date(Number(m.timestamp) * 1000),
+          buttonId,
         });
       }
     }
