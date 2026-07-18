@@ -385,6 +385,7 @@ model Patient {
   consultations Consultation[]
   nurseVisits   NurseVisit[]
   labResults    LabResult[]
+  prescriptions Prescription[]
 
   @@unique([clinicId, phone])
   @@index([clinicId, email])
@@ -479,7 +480,7 @@ model Consultation {
   patientId              String
   patient                Patient     @relation(fields: [patientId], references: [id])
   notes                  String?
-  prescription           String?
+  prescription           String? // legacy text field; new prescriptions stored as Prescription rows
   weightKg               Float? // vital recorded at this visit, tracked over time on the patient's history page
   administeredTreatment  String? // meds/injections given on the spot by nurse or doctor — distinct from `prescription` (take-home)
   // When the doctor recommends "come back in N days" — we store the resulting
@@ -490,9 +491,32 @@ model Consultation {
   followUpReminderSentAt DateTime?
   createdAt              DateTime    @default(now())
 
+  prescriptions Prescription[]
+
   @@index([patientId])
   @@index([doctorId])
   @@index([followUpDate])
+}
+
+// Structured medicine prescription with dosage, frequency, duration.
+model Prescription {
+  id              String       @id @default(cuid())
+  consultationId  String
+  consultation    Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  patientId       String
+  patient         Patient      @relation(fields: [patientId], references: [id])
+  medicineName    String // e.g., "Amoxicillin"
+  dosage          String // e.g., "500mg"
+  frequency       String // e.g., "3 times daily", "twice daily"
+  durationDays    Int // total duration in days
+  instructions    String? // special instructions (with food, before bed, etc.)
+  dispensedAt     DateTime? // when patient got the medicine
+  refillsRemaining Int      @default(0)
+  expiryDate      DateTime?
+  createdAt       DateTime @default(now())
+
+  @@index([patientId, createdAt])
+  @@index([consultationId])
 }
 
 // Vitals recorded by a NURSE-role staff member (a Doctor row whose
