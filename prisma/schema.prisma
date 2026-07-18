@@ -377,6 +377,7 @@ model Patient {
   birthYear    Int?
   gender       Gender?
   medicalNotes String? // allergies, chronic conditions, anything clinically relevant
+  verified     Boolean  @default(false) // true after OTP verification for WhatsApp registrations
   createdAt    DateTime @default(now())
 
   appointments  Appointment[]
