@@ -155,6 +155,7 @@ export function parseMetaWebhookPayload(rawBody: unknown): InboundWhatsAppMessag
             type?: string;
             text?: { body: string };
             button?: { payload: string }; // button click
+            audio?: { id: string; mime_type?: string; voice?: boolean }; // voice note / audio message
             interactive?: {
               type: string;
               button_reply?: { id: string; title: string };
@@ -173,6 +174,9 @@ export function parseMetaWebhookPayload(rawBody: unknown): InboundWhatsAppMessag
       for (const m of change.value?.messages ?? []) {
         let body = m.text?.body ?? "";
         let buttonId: string | undefined;
+        let mediaId: string | undefined;
+        let mediaType: "audio" | undefined;
+        let mimeType: string | undefined;
 
         if (m.interactive?.button_reply) {
           buttonId = m.interactive.button_reply.id;
@@ -180,6 +184,10 @@ export function parseMetaWebhookPayload(rawBody: unknown): InboundWhatsAppMessag
         } else if (m.interactive?.list_reply) {
           buttonId = m.interactive.list_reply.id;
           body = m.interactive.list_reply.title;
+        } else if (m.audio) {
+          mediaId = m.audio.id;
+          mediaType = "audio";
+          mimeType = m.audio.mime_type;
         }
 
         messages.push({
@@ -189,11 +197,32 @@ export function parseMetaWebhookPayload(rawBody: unknown): InboundWhatsAppMessag
           providerMessageId: m.id,
           timestamp: new Date(Number(m.timestamp) * 1000),
           buttonId,
+          mediaId,
+          mediaType,
+          mimeType,
         });
       }
     }
   }
   return messages;
+}
+
+/**
+ * Resolves a webhook media id (e.g. a voice note) to a short-lived download
+ * URL. Meta expires these URLs within minutes, so callers must fetch the
+ * audio immediately — only the media id is ever persisted (see VoiceNote).
+ */
+export async function fetchMetaMediaUrl(mediaId: string, accessToken: string): Promise<string> {
+  const res = await fetch(`https://graph.facebook.com/v20.0/${mediaId}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Meta media lookup failed (${res.status}): ${text}`);
+  }
+  const data = (await res.json()) as { url?: string };
+  if (!data.url) throw new Error("Meta media lookup returned no URL");
+  return data.url;
 }
 
 // Meta's fields are usually digit-only already, but strip any stray

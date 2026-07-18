@@ -63,6 +63,18 @@ export const toolDefinitions: Anthropic.Tool[] = [
     },
   },
   {
+    name: "join_waitlist",
+    description:
+      "Add the patient to a doctor's waitlist when no slot suits them (fully booked, or they want an earlier time than what's open). If a booked slot frees up through a cancellation, the patient is automatically offered it over WhatsApp, oldest waitlist entry first. Tell the patient they've been added and will get a message if an opening appears.",
+    input_schema: {
+      type: "object",
+      properties: {
+        doctorId: { type: "string", description: "The doctor the patient wants an (earlier) appointment with" },
+      },
+      required: ["doctorId"],
+    },
+  },
+  {
     name: "escalate_to_human",
     description:
       "Create a follow-up request on the clinic front desk's dashboard. Use for emergencies, complaints, billing questions, or anything you're unsure how to handle safely. Staff will see it and reply to the patient in this same WhatsApp chat (or call them) — so tell the patient staff will get back to them here soon; do NOT imply they are being transferred or connected live right now.",
@@ -166,7 +178,32 @@ export async function runTool(name: string, input: any, ctx: ToolContext): Promi
 
     case "cancel_appointment": {
       await adapter.cancelAppointment({ clinicId: ctx.clinic.id, appointmentId: input.appointmentId });
+      // Booking realignment: the freed slot goes to the head of the doctor's
+      // waitlist (no-op when nobody is waiting, or on non-native adapters
+      // where the slot row isn't ours).
+      const { prisma } = await import("../db/client");
+      const cancelled = await prisma.appointment.findUnique({
+        where: { id: String(input.appointmentId) },
+        select: { slotId: true },
+      });
+      if (cancelled) {
+        const { offerFreedSlot } = await import("../waitlistHandlers");
+        await offerFreedSlot(ctx.clinic.id, cancelled.slotId);
+      }
       return { cancelled: true };
+    }
+
+    case "join_waitlist": {
+      // Patient asked for a time that has no opening — put them in line so
+      // a cancellation automatically offers them the freed slot.
+      const { prisma } = await import("../db/client");
+      const patient = await prisma.patient.findUnique({
+        where: { clinicId_phone: { clinicId: ctx.clinic.id, phone: ctx.patientPhone } },
+      });
+      if (!patient) return { joined: false, reason: "Patient not registered yet" };
+      const { addToWaitlist } = await import("../waitlistHandlers");
+      await addToWaitlist(ctx.clinic.id, patient.id, String(input.doctorId));
+      return { joined: true };
     }
 
     case "escalate_to_human": {

@@ -14,6 +14,10 @@ import { cancelAppointment, rescheduleAppointment } from "@/src/scheduling/booki
 import { getClinic } from "@/src/adminHandlers";
 import { handleStaffInstruction } from "@/src/ai/orchestrator";
 import { getSession } from "@/lib/session";
+import { notifyAppointmentCancelled, notifyAppointmentRescheduled } from "@/src/appointmentNotifications";
+import { offerFreedSlot } from "@/src/waitlistHandlers";
+import { logAuditSafe } from "@/src/auditLog";
+import { maskPhone } from "@/lib/privacy";
 
 export async function checkInAction(formData: FormData) {
   const session = await getSession();
@@ -29,7 +33,18 @@ export async function cancelAppointmentAction(formData: FormData) {
   if (!session) throw new Error("Not authenticated");
 
   const appointmentId = String(formData.get("appointmentId"));
-  await cancelAppointment(session.clinicId, appointmentId);
+  // Cancellation is the source of truth; notification and waitlist
+  // realignment ride behind it and must never make it fail.
+  const { freedSlotId } = await cancelAppointment(session.clinicId, appointmentId);
+  await notifyAppointmentCancelled(appointmentId);
+  await offerFreedSlot(session.clinicId, freedSlotId);
+  await logAuditSafe({
+    clinicId: session.clinicId,
+    userId: session.userId,
+    action: "appointment.cancel",
+    entity: "Appointment",
+    entityId: appointmentId,
+  });
   revalidatePath("/receptionist");
 }
 
@@ -37,7 +52,20 @@ export async function rescheduleAppointmentAction(appointmentId: string, newSlot
   const session = await getSession();
   if (!session) throw new Error("Not authenticated");
 
-  await rescheduleAppointment(session.clinicId, appointmentId, newSlotId);
+  const change = await rescheduleAppointment(session.clinicId, appointmentId, newSlotId);
+  if (change) {
+    // Tells the patient about the move — and names the new doctor when the
+    // reschedule was also a handover to a different doctor.
+    await notifyAppointmentRescheduled(appointmentId, change.previousDoctorName);
+    await offerFreedSlot(session.clinicId, change.freedSlotId);
+    await logAuditSafe({
+      clinicId: session.clinicId,
+      userId: session.userId,
+      action: change.doctorChanged ? "appointment.handover" : "appointment.reschedule",
+      entity: "Appointment",
+      entityId: appointmentId,
+    });
+  }
   revalidatePath("/receptionist");
 }
 
@@ -128,7 +156,16 @@ export async function searchPatientsAction(query: string) {
   if (!session) throw new Error("Not authenticated");
 
   const { searchPatients } = await import("@/src/receptionistHandlers");
-  return searchPatients(session.clinicId, query);
+  const results = await searchPatients(session.clinicId, query);
+  await logAuditSafe({
+    clinicId: session.clinicId,
+    userId: session.userId,
+    action: "patient.search",
+    entity: "Patient",
+    // Query text can itself be a phone number — mask it before persisting.
+    detail: maskPhone(query),
+  });
+  return results;
 }
 
 export async function listWeekSlotsAction(

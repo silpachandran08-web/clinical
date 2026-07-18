@@ -5,6 +5,9 @@ export interface InboundWhatsAppMessage {
   providerMessageId: string;
   timestamp: Date;
   buttonId?: string; // set if this is a button click response
+  mediaId?: string; // provider media id, set for audio/voice messages
+  mediaType?: "audio"; // only audio is handled today (patient voice notes)
+  mimeType?: string;
 }
 
 export interface WhatsAppButton {

@@ -2,6 +2,9 @@ import { prisma } from "./db/client";
 import { handleInboundMessage } from "./ai/orchestrator";
 import { createWhatsAppProvider } from "./whatsapp/index";
 import { parseMetaWebhookPayload } from "./whatsapp/metaCloudProvider";
+import { handleInboundVoiceNote } from "./voiceNoteHandlers";
+import { handleWaitlistReply } from "./waitlistHandlers";
+import { maskPhone } from "@/lib/privacy";
 
 /**
  * Framework-agnostic webhook logic, shared by the local Fastify server
@@ -42,11 +45,11 @@ export async function handleWebhookMessage(params: {
   // so fire-and-forget work after replying is silently dropped there. This
   // is slower per-request but correct on both Fastify and Vercel.
   for (const message of inboundMessages) {
-    if (!message.body) continue;
+    if (!message.body && !message.mediaId) continue;
 
     const clinic = await prisma.clinic.findUnique({ where: { whatsappNumber: message.toPhone } });
     if (!clinic) {
-      console.warn(`No clinic configured for WhatsApp number ${message.toPhone}`);
+      console.warn(`No clinic configured for WhatsApp number ${maskPhone(message.toPhone)}`);
       continue;
     }
 
@@ -57,6 +60,17 @@ export async function handleWebhookMessage(params: {
     }
 
     try {
+      // Voice notes bypass the text-only AI: store + escalate to staff.
+      if (message.mediaType === "audio" && message.mediaId) {
+        await handleInboundVoiceNote(clinic, message);
+        continue;
+      }
+
+      // Structured button replies (waitlist offers) resolve without the AI.
+      if (message.buttonId && (await handleWaitlistReply(clinic, message.fromPhone, message.buttonId))) {
+        continue;
+      }
+
       const replyText = await handleInboundMessage({
         clinic,
         patientPhone: message.fromPhone,

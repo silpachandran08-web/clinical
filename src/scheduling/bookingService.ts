@@ -31,7 +31,7 @@ export interface BookSlotParams {
   clinicId: string;
   slotId: string;
   patientPhone: string;
-  patientName: string;
+  patientName?: string; // omitted = keep the patient's existing name (e.g. waitlist rebooking)
   reason?: string;
   bookedByStaff?: boolean; // true for receptionist walk-ins, false/omitted for WhatsApp bookings
 }
@@ -66,7 +66,7 @@ export async function bookSlot(params: BookSlotParams) {
 
     const patient = await tx.patient.upsert({
       where: { clinicId_phone: { clinicId: params.clinicId, phone: params.patientPhone } },
-      update: { name: params.patientName },
+      update: params.patientName ? { name: params.patientName } : {},
       create: { clinicId: params.clinicId, phone: params.patientPhone, name: params.patientName },
     });
 
@@ -103,6 +103,10 @@ export async function cancelAppointment(clinicId: string, appointmentId: string)
 
     await tx.appointment.update({ where: { id: appointmentId }, data: { status: "CANCELLED" } });
     await tx.slot.update({ where: { id: appointment.slotId }, data: { status: "OPEN" } });
+
+    // Freed-slot details so the caller can notify the patient and offer the
+    // opening to the waitlist (see waitlistHandlers.offerFreedSlot).
+    return { freedSlotId: appointment.slotId, doctorId: appointment.doctorId };
   });
 }
 
@@ -118,10 +122,11 @@ export async function rescheduleAppointment(clinicId: string, appointmentId: str
   return prisma.$transaction(async (tx) => {
     const appointment = await tx.appointment.findFirst({
       where: { id: appointmentId, clinicId, status: { in: ["CONFIRMED", "CHECKED_IN"] } },
+      include: { doctor: { select: { name: true } } },
     });
     if (!appointment) throw new Error("Appointment not found, or not in a state that can be edited");
 
-    if (appointment.slotId === newSlotId) return;
+    if (appointment.slotId === newSlotId) return null;
 
     const newSlot = await tx.slot.findFirst({
       where: { id: newSlotId, doctor: { clinicId } },
@@ -139,6 +144,15 @@ export async function rescheduleAppointment(clinicId: string, appointmentId: str
       where: { id: appointmentId },
       data: { slotId: newSlotId, doctorId: newSlot.doctorId },
     });
+
+    // Previous-doctor details so the caller can tell the patient whether
+    // this was a plain reschedule or a handover to a different doctor.
+    return {
+      previousDoctorName: appointment.doctor.name,
+      doctorChanged: newSlot.doctorId !== appointment.doctorId,
+      freedSlotId: appointment.slotId,
+      previousDoctorId: appointment.doctorId,
+    };
   });
 }
 

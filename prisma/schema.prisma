@@ -178,6 +178,9 @@ model Clinic {
   payments            Payment[]
   flowSteps           FlowStep[]
   labFieldDefinitions LabFieldDefinition[]
+  waitlistEntries     Waitlist[]
+  voiceNotes          VoiceNote[]
+  auditLogs           AuditLog[]
 }
 
 model Transaction {
@@ -321,9 +324,10 @@ model Doctor {
   appointments  Appointment[]
   consultations Consultation[]
   // Populated only for staff whose department kind is NURSE/LAB respectively.
-  nurseVisits   NurseVisit[]
-  labResults    LabResult[]
-  user          User? // set when a User with role=DOCTOR, NURSE, or LAB is linked to this staff record
+  nurseVisits     NurseVisit[]
+  labResults      LabResult[]
+  waitlistEntries Waitlist[]
+  user            User? // set when a User with role=DOCTOR, NURSE, or LAB is linked to this staff record
 
   @@index([clinicId])
   @@index([departmentId])
@@ -378,14 +382,20 @@ model Patient {
   gender       Gender?
   medicalNotes String? // allergies, chronic conditions, anything clinically relevant
   verified     Boolean  @default(false) // true after OTP verification for WhatsApp registrations
+  // When we last sent this patient a "we miss you" re-engagement message —
+  // the retention cron skips anyone contacted in the last 90 days so an
+  // inactive patient is never spammed on every run.
+  lastReEngagedAt DateTime?
   createdAt    DateTime @default(now())
 
-  appointments  Appointment[]
-  conversations Conversation[]
-  consultations Consultation[]
-  nurseVisits   NurseVisit[]
-  labResults    LabResult[]
-  prescriptions Prescription[]
+  appointments    Appointment[]
+  conversations   Conversation[]
+  consultations   Consultation[]
+  nurseVisits     NurseVisit[]
+  labResults      LabResult[]
+  prescriptions   Prescription[]
+  waitlistEntries Waitlist[]
+  voiceNotes      VoiceNote[]
 
   @@unique([clinicId, phone])
   @@index([clinicId, email])
@@ -413,6 +423,9 @@ model Appointment {
   checkedInAt         DateTime?
   startedAt           DateTime?
   reminderSentAt      DateTime?
+  // Mirrors reminderSentAt's "don't contact twice" convention for the
+  // retention cron's "sorry we missed you — rebook?" message after a NO_SHOW.
+  noShowFollowUpSentAt DateTime?
   createdAt           DateTime          @default(now())
   // Set while status = AT_STAGE: which department's shared queue this
   // appointment currently sits in (see FlowStep). Null otherwise.
@@ -657,6 +670,73 @@ model StaffEscalation {
   resolvedAt   DateTime?
 
   @@index([clinicId, status])
+}
+
+enum WaitlistStatus {
+  WAITING // in line, not yet offered anything
+  OFFERED // a freed slot was offered via WhatsApp, awaiting the patient's button reply
+  FULFILLED // patient accepted an offered slot and was booked
+  DECLINED // patient declined the offered slot (entry closed; they can re-join)
+  EXPIRED // offer superseded (slot taken by someone else) or entry aged out
+  CANCELLED // patient or staff removed the entry
+}
+
+// A patient waiting for an earlier/any slot with a doctor. When a booked
+// slot is freed by a cancellation, the oldest WAITING entry for that doctor
+// gets the slot offered over WhatsApp (accept/decline buttons) — see
+// waitlistHandlers.ts. One offer is outstanding at a time per freed slot.
+model Waitlist {
+  id            String         @id @default(cuid())
+  clinicId      String
+  clinic        Clinic         @relation(fields: [clinicId], references: [id])
+  patientId     String
+  patient       Patient        @relation(fields: [patientId], references: [id])
+  doctorId      String
+  doctor        Doctor         @relation(fields: [doctorId], references: [id])
+  status        WaitlistStatus @default(WAITING)
+  offeredSlotId String? // set while status = OFFERED
+  offeredAt     DateTime?
+  createdAt     DateTime       @default(now())
+
+  @@index([clinicId, doctorId, status])
+  @@index([patientId])
+}
+
+// A WhatsApp voice message from a patient. Only the provider's media id is
+// stored — Meta media download URLs expire within minutes, so the audio is
+// fetched on demand via the clinic's access token (see fetchMetaMediaUrl).
+// transcript stays null until a speech-to-text integration fills it in.
+model VoiceNote {
+  id              String   @id @default(cuid())
+  clinicId        String
+  clinic          Clinic   @relation(fields: [clinicId], references: [id])
+  patientId       String?
+  patient         Patient? @relation(fields: [patientId], references: [id])
+  patientPhone    String // E.164 — kept even when the phone isn't a registered patient yet
+  providerMediaId String
+  mimeType        String?
+  transcript      String?
+  createdAt       DateTime @default(now())
+
+  @@index([clinicId, createdAt])
+  @@index([patientId])
+}
+
+// Who touched which patient-identifiable data, and when — written by
+// logAudit() from the server-action layer (patient search, reschedules,
+// cancellations, history reads). Append-only; never exposed to patients.
+model AuditLog {
+  id        String   @id @default(cuid())
+  clinicId  String
+  clinic    Clinic   @relation(fields: [clinicId], references: [id])
+  userId    String? // null for system/cron actions
+  action    String // e.g. "patient.search", "appointment.cancel"
+  entity    String // e.g. "Patient", "Appointment"
+  entityId  String? // null for list/search actions
+  detail    String? // e.g. the (masked) search query
+  createdAt DateTime @default(now())
+
+  @@index([clinicId, createdAt])
 }
 
 // Platform-wide (not per-clinic) setting controlling which design renders at
