@@ -2,8 +2,10 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/session";
 import { getClinic, listDoctors } from "@/src/adminHandlers";
 import {
+  formatDayParam,
   getDayParam,
   getWeekStart,
+  listAppointmentsForDay,
   listDoctorsStatusForDay,
   listMultiWeekSlotsForDoctors,
   listOpenEscalations,
@@ -37,6 +39,7 @@ type ReceptionistParams = {
   slotId?: string;
   tab?: string;
   paid?: string;
+  day?: string; // Queue tab: which day's queue to show ("YYYY-MM-DD", clinic timezone)
 };
 
 export default async function ReceptionistPage({
@@ -57,6 +60,12 @@ export default async function ReceptionistPage({
   const selectedDoctorId = params.doctorId ?? "";
   const patientQuery = params.patientQuery ?? "";
 
+  // Queue tab day navigation: ?day=YYYY-MM-DD picks which day's queue to
+  // show (defaults to today). Days before today are not offered — the queue
+  // is an operational view, not a history report.
+  const queueDayStart = getDayParam(params.day, timeZone);
+  const queueDayIsToday = queueDayStart.getTime() === today.getTime();
+
   const weekStart = getWeekStart(params.week, timeZone);
   const prevWeekStart = new Date(weekStart.getTime() - 7 * DAY_MS);
   const nextWeekStart = new Date(weekStart.getTime() + 7 * DAY_MS);
@@ -69,8 +78,16 @@ export default async function ReceptionistPage({
   const isBooking = currentTab === "booking";
   const isBilling = currentTab === "billing";
   const needsDoctorList = isBooking || currentTab === "doctors";
-  const [appointments, todayDoctorStatus, allDoctors, escalations, week, patientResults, billingRows, collected] = await Promise.all([
+  // Prisma Decimal instances can't cross the server->client component
+  // boundary — convert the doctor's one Decimal field to a plain number.
+  const toClientAppointments = (rows: Awaited<ReturnType<typeof listTodayAppointments>>) =>
+    rows.map((a) => ({ ...a, doctor: { ...a.doctor, consultationFee: Number(a.doctor.consultationFee) } }));
+
+  const [rawAppointments, rawQueueDayAppointments, todayDoctorStatus, allDoctors, escalations, week, patientResults, billingRows, collected] = await Promise.all([
     listTodayAppointments(session.clinicId, timeZone),
+    currentTab === "queue" && !queueDayIsToday
+      ? listAppointmentsForDay(session.clinicId, queueDayStart)
+      : Promise.resolve([]),
     listDoctorsStatusForDay(session.clinicId, today),
     needsDoctorList ? listDoctors(session.clinicId) : Promise.resolve([]),
     currentTab === "overview" ? listOpenEscalations(session.clinicId) : Promise.resolve([]),
@@ -83,6 +100,8 @@ export default async function ReceptionistPage({
       ? getCollectedSummary(session.clinicId, timeZone)
       : Promise.resolve({ collectedToday: 0, collectedThisMonth: 0 }),
   ]);
+  const appointments = toClientAppointments(rawAppointments);
+  const queueDayAppointments = toClientAppointments(rawQueueDayAppointments);
 
   // Doctors tab: multi-week slot grids (current week + 3 ahead), all doctors
   // and weeks fetched in one batched query.
@@ -217,7 +236,21 @@ export default async function ReceptionistPage({
         )}
 
         {currentTab === "queue" && (
-          <QueueTab appointments={appointments} timeZone={timeZone} />
+          <QueueTab
+            appointments={queueDayIsToday ? appointments : queueDayAppointments}
+            timeZone={timeZone}
+            isToday={queueDayIsToday}
+            dayLabel={queueDayStart.toLocaleDateString(undefined, {
+              weekday: "long",
+              month: "short",
+              day: "numeric",
+              timeZone,
+            })}
+            prevDayHref={`/receptionist?tab=queue&day=${formatDayParam(new Date(queueDayStart.getTime() - DAY_MS), timeZone)}`}
+            nextDayHref={`/receptionist?tab=queue&day=${formatDayParam(new Date(queueDayStart.getTime() + DAY_MS), timeZone)}`}
+            todayHref="/receptionist?tab=queue"
+            canGoBack={queueDayStart > today}
+          />
         )}
 
         {currentTab === "billing" && (

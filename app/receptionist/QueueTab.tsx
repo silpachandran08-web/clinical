@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { checkInAction } from "@/lib/actions/receptionist";
 import { EditAppointmentModal } from "./EditAppointmentModal";
 import { CancelAppointmentButton } from "./CancelAppointmentButton";
@@ -15,13 +16,42 @@ import { AvatarThumb } from "../AvatarThumb";
 interface QueueTabProps {
   appointments: Array<any>;
   timeZone: string;
+  isToday: boolean;
+  dayLabel: string; // e.g. "Saturday, Jul 19", already in the clinic's timezone
+  prevDayHref: string;
+  nextDayHref: string;
+  todayHref: string;
+  canGoBack: boolean; // false when already on today — the queue never looks at the past
 }
+
+const dayNavButtonStyle = (enabled: boolean): React.CSSProperties => ({
+  padding: "7px 12px",
+  background: "var(--surface-2)",
+  border: "1px solid var(--border-soft)",
+  borderRadius: "var(--radius-sm)",
+  fontSize: 12,
+  fontWeight: 600,
+  color: "var(--text)",
+  textDecoration: "none",
+  cursor: enabled ? "pointer" : "not-allowed",
+  opacity: enabled ? 1 : 0.45,
+  whiteSpace: "nowrap",
+});
 
 interface GroupedByDept {
   [deptName: string]: Array<any>;
 }
 
-export function QueueTab({ appointments, timeZone }: QueueTabProps) {
+export function QueueTab({
+  appointments,
+  timeZone,
+  isToday,
+  dayLabel,
+  prevDayHref,
+  nextDayHref,
+  todayHref,
+  canGoBack,
+}: QueueTabProps) {
   const groupedByDept: GroupedByDept = (appointments || []).reduce((acc, appt) => {
     const deptName = appt?.doctor?.department?.name || "Unknown";
     if (!acc[deptName]) acc[deptName] = [];
@@ -42,14 +72,61 @@ export function QueueTab({ appointments, timeZone }: QueueTabProps) {
     setExpandedDepts(newSet);
   };
 
+  // Day navigation lives in the header card so it's reachable even when the
+  // selected day has no appointments (you must be able to come back!).
+  const headerCard = (
+    <div className="card" style={{ marginBottom: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+        <div>
+          <h2 className="card-title-icon" style={{ marginBottom: 0 }}>
+            <CalendarIcon /> Patient Queue
+          </h2>
+          <p className="muted" style={{ marginTop: 8, marginBottom: 0, fontSize: 13 }}>
+            {appointments.length} patient{appointments.length !== 1 ? "s" : ""} {isToday ? "today" : `on ${dayLabel}`}
+            {appointments.length > 0 ? " • Click to expand by department" : ""}
+          </p>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          {canGoBack ? (
+            <Link href={prevDayHref} style={dayNavButtonStyle(true)}>
+              ← Previous
+            </Link>
+          ) : (
+            <span style={dayNavButtonStyle(false)}>← Previous</span>
+          )}
+          <span
+            style={{
+              fontSize: 12.5,
+              fontWeight: 600,
+              color: isToday ? "var(--accent)" : "var(--text)",
+              padding: "0 4px",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {isToday ? `Today — ${dayLabel}` : dayLabel}
+          </span>
+          <Link href={nextDayHref} style={dayNavButtonStyle(true)}>
+            Next →
+          </Link>
+          {!isToday && (
+            <Link href={todayHref} style={{ ...dayNavButtonStyle(true), color: "var(--accent)" }}>
+              Today
+            </Link>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
   if (!appointments || appointments.length === 0) {
     return (
       <div>
+        {headerCard}
         <div className="card">
           <div style={{ textAlign: "center", padding: "32px 24px" }}>
             <CalendarIcon size={40} style={{ color: "var(--text-muted)", marginBottom: 12, opacity: 0.5 }} />
             <p className="muted" style={{ fontSize: 15, marginBottom: 0 }}>
-              No patients scheduled for today
+              No patients scheduled for {isToday ? "today" : dayLabel}
             </p>
           </div>
         </div>
@@ -59,14 +136,7 @@ export function QueueTab({ appointments, timeZone }: QueueTabProps) {
 
   return (
     <div>
-      <div className="card" style={{ marginBottom: 12 }}>
-        <h2 className="card-title-icon" style={{ marginBottom: 0 }}>
-          <CalendarIcon /> Patient Queue
-        </h2>
-        <p className="muted" style={{ marginTop: 8, marginBottom: 0, fontSize: 13 }}>
-          {appointments.length} patient{appointments.length !== 1 ? 's' : ''} today • Click to expand by department
-        </p>
-      </div>
+      {headerCard}
 
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {sortedDepts.map((deptName) => {
@@ -248,7 +318,7 @@ export function QueueTab({ appointments, timeZone }: QueueTabProps) {
                               {a.status === "AT_STAGE" && a.currentDepartment && (
                                 <span className="badge">At: {a.currentDepartment.name}</span>
                               )}
-                              {a.status === "CONFIRMED" && (
+                              {isToday && a.status === "CONFIRMED" && (
                                 <form action={checkInAction} style={{ margin: 0 }}>
                                   <input type="hidden" name="appointmentId" value={a.id} />
                                   <button

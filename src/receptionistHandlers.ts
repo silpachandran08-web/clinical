@@ -20,9 +20,15 @@ function startOfTomorrow(timeZone: string): Date {
 }
 
 export async function listTodayAppointments(clinicId: string, timeZone: string) {
+  return listAppointmentsForDay(clinicId, startOfToday(timeZone));
+}
+
+/** Same shape as listTodayAppointments for any day — feeds the Queue tab's day navigation. */
+export async function listAppointmentsForDay(clinicId: string, dayStart: Date) {
   return prisma.appointment.findMany({
-    where: { clinicId, slot: { startsAt: { gte: startOfToday(timeZone), lt: startOfTomorrow(timeZone) } } },
-    include: { doctor: true, patient: true, slot: true, currentDepartment: true },
+    where: { clinicId, slot: { startsAt: { gte: dayStart, lt: new Date(dayStart.getTime() + DAY_MS) } } },
+    // doctor.department feeds the Queue tab's per-department grouping.
+    include: { doctor: { include: { department: true } }, patient: true, slot: true, currentDepartment: true },
     orderBy: { slot: { startsAt: "asc" } },
   });
 }
