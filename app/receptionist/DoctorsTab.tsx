@@ -40,6 +40,17 @@ function weekdayInTimezone(date: Date, timeZone: string): number {
   return DAY_NAMES.indexOf(label);
 }
 
+/**
+ * "YYYY-MM-DD" as observed in the clinic's timezone — same-day comparisons
+ * must go through this, never setUTCHours(0,0,0,0): day.date is midnight in
+ * the CLINIC's timezone (21:00 UTC the prior day for Riyadh), so truncating
+ * to UTC midnight rolls it back a day and made "today" fail a >= today
+ * check — hiding today's column entirely for any timezone ahead of UTC.
+ */
+function localDateKey(date: Date, timeZone: string): string {
+  return date.toLocaleDateString("en-CA", { timeZone }); // en-CA formats as YYYY-MM-DD
+}
+
 export function DoctorsTab({ clinic, doctors, now }: DoctorsTabProps) {
   const router = useRouter();
   // Compute working days (all days except weekends)
@@ -290,12 +301,8 @@ export function DoctorsTab({ clinic, doctors, now }: DoctorsTabProps) {
                       .filter((day) => {
                         // Only show working days
                         if (!workingDayNums.includes(weekdayInTimezone(day.date, clinic.timezone))) return false;
-                        // Only show today and future dates
-                        const dayStart = new Date(day.date);
-                        dayStart.setUTCHours(0, 0, 0, 0);
-                        const todayStart = new Date(now);
-                        todayStart.setUTCHours(0, 0, 0, 0);
-                        return dayStart.getTime() >= todayStart.getTime();
+                        // Only show today and future dates (compared in the clinic's timezone)
+                        return localDateKey(day.date, clinic.timezone) >= localDateKey(now, clinic.timezone);
                       })
                       .map((day, idx) => {
                         const dayOfWeek = weekdayInTimezone(day.date, clinic.timezone);
@@ -306,12 +313,8 @@ export function DoctorsTab({ clinic, doctors, now }: DoctorsTabProps) {
                           timeZone: clinic.timezone,
                         });
 
-                        // Check if this is today
-                        const dayStart = new Date(day.date);
-                        dayStart.setUTCHours(0, 0, 0, 0);
-                        const todayStart = new Date(now);
-                        todayStart.setUTCHours(0, 0, 0, 0);
-                        const isToday = dayStart.getTime() === todayStart.getTime();
+                        // Check if this is today (in the clinic's timezone)
+                        const isToday = localDateKey(day.date, clinic.timezone) === localDateKey(now, clinic.timezone);
 
                         return (
                           <div key={idx} style={{ flex: 1, minWidth: "0" }}>
