@@ -295,15 +295,11 @@ export function DoctorsTab({ clinic, doctors, now }: DoctorsTabProps) {
                     </button>
                   </div>
 
-                  {/* Week Grid - Only Working Days (Today & Future) */}
+                  {/* Week Grid - full week, Sunday through Saturday. Past days
+                      and non-working days stay visible (dimmed / labelled)
+                      instead of disappearing, so the columns never shift. */}
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))", gap: 12 }}>
                     {currentWeek.days
-                      .filter((day) => {
-                        // Only show working days
-                        if (!workingDayNums.includes(weekdayInTimezone(day.date, clinic.timezone))) return false;
-                        // Only show today and future dates (compared in the clinic's timezone)
-                        return localDateKey(day.date, clinic.timezone) >= localDateKey(now, clinic.timezone);
-                      })
                       .map((day, idx) => {
                         const dayOfWeek = weekdayInTimezone(day.date, clinic.timezone);
                         const dayLabel = DAY_NAMES[dayOfWeek];
@@ -313,16 +309,18 @@ export function DoctorsTab({ clinic, doctors, now }: DoctorsTabProps) {
                           timeZone: clinic.timezone,
                         });
 
-                        // Check if this is today (in the clinic's timezone)
+                        // All in the clinic's timezone (see localDateKey).
                         const isToday = localDateKey(day.date, clinic.timezone) === localDateKey(now, clinic.timezone);
+                        const isPastDay = localDateKey(day.date, clinic.timezone) < localDateKey(now, clinic.timezone);
+                        const isWeekendDay = !workingDayNums.includes(dayOfWeek);
 
                         return (
-                          <div key={idx} style={{ flex: 1, minWidth: "0" }}>
+                          <div key={idx} style={{ flex: 1, minWidth: "0", opacity: isPastDay ? 0.55 : 1 }}>
                             <div
                               style={{
                                 fontSize: 11,
                                 fontWeight: 600,
-                                color: "var(--text-muted)",
+                                color: isToday ? "var(--accent)" : "var(--text-muted)",
                                 marginBottom: 8,
                                 textAlign: "center",
                               }}
@@ -345,7 +343,7 @@ export function DoctorsTab({ clinic, doctors, now }: DoctorsTabProps) {
                                     padding: "12px 8px",
                                   }}
                                 >
-                                  No slots
+                                  {isWeekendDay ? "Weekend" : "No slots"}
                                 </div>
                               ) : (
                                 day.slots.map((slot) => {
@@ -354,7 +352,7 @@ export function DoctorsTab({ clinic, doctors, now }: DoctorsTabProps) {
                                     { hour: "2-digit", minute: "2-digit", timeZone: clinic.timezone }
                                   );
                                   const isOpen = slot.status === "OPEN";
-                                  const isPast = isToday && slot.startsAt.getTime() < now.getTime();
+                                  const isPast = isPastDay || (isToday && slot.startsAt.getTime() < now.getTime());
                                   const canBook = isOpen && !isPast;
 
                                   return (
